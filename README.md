@@ -67,7 +67,7 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 
 **Vincent Batten**  
 *4+1 Financial Engineering '27, Lehigh University*  
-*Investment Managment | Data Science |*          
+*Investment Managment | Data Science *                  
 [LinkedIn](https://www.linkedin.com/in/vincentbatten27/)
 # New Contributors
 **Nate Songstad**  
