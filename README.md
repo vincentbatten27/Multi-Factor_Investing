@@ -70,10 +70,10 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 *Investment Managment | Data Science*
 [LinkedIn](https://www.linkedin.com/in/vincentbatten27/)
 # New Contributors
-**Nate Songsstad**  
+**Nate Songstad**  
 *M.S. Financial Engineering '27, Lehigh University*  
 
-**Sethu Chanra**  
+**Sethu Chandra**  
 *IBE Financial Engineering '28, Lehigh University*  
 
 
