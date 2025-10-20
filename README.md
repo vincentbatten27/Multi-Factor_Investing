@@ -61,23 +61,24 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 ## 👤 Authors
 
 **Johanan Anton Pranesh**  
-*M.S. Financial Engineering'25, Lehigh University*  
+*M.S. Financial Engineering '25, Lehigh University*  
 *King Street Alumni | Quant Research | Data Science*  
 [Website](https://johananantonpranesh.github.io/) • [LinkedIn](https://www.linkedin.com/in/johanan-anton-pranesh/) • [Email](mailto:johanananton@outlook.com)
 
 **Vincent Batten**  
-*4+1 Financial Engineering'27, Lehigh University*  
-
+*4+1 Financial Engineering '27, Lehigh University*  
+*Investment Managment | Data Science*
+•[LinkedIn] (https://www.linkedin.com/in/vincentbatten27/)
 # New Contributors
 **Nate Songsstad**  
-*M.S. Financial Engineering'27, Lehigh University*  
+*M.S. Financial Engineering '27, Lehigh University*  
 
 **Sethu Chanra**  
-*IBE Financial Engineering'28, Lehigh University*  
+*IBE Financial Engineering '28, Lehigh University*  
 
 
 # Former Contributors
-** Shisheng Liang**  
+**Shisheng Liang**  
 *M.S. Financial Engineering'25, Lehigh University*  
 
 **Asim Turk**  
