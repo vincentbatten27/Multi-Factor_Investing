@@ -1,0 +1,7 @@
+Method,Best Learning Rate,Best Momentum
+SGD,0.01,
+SGD Momentum,0.01,0.9
+Adagrad,0.01,
+Adam,0.01,
+Adagrad Manual,0.01,
+Adam Manual,0.01,

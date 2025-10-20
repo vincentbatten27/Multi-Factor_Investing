@@ -1,0 +1,17 @@
+yfinance==0.2.36
+
+numpy
+pandas
+seaborn
+matplotlib
+pandas-datareader
+scikit-learn
+getFamaFrenchFactors
+plotly
+ipython
+statsmodels
+pulp
+pyarrow
+setuptools
+certifi
+openpyxl
