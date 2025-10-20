@@ -66,9 +66,18 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 [Website](https://johananantonpranesh.github.io/) • [LinkedIn](https://www.linkedin.com/in/johanan-anton-pranesh/) • [Email](mailto:johanananton@outlook.com)
 
 **Vincent Batten**  
-*4+1 Financial Engineering'28, Lehigh University*  
+*4+1 Financial Engineering'27, Lehigh University*  
 
-**Shisheng Liang**  
+# New Contributors
+**Nate Songsstad**  
+*M.S. Financial Engineering'27, Lehigh University*  
+
+**Sethu Chanra**  
+*IBE Financial Engineering'28, Lehigh University*  
+
+
+# Former Contributors
+** Shisheng Liang**  
 *M.S. Financial Engineering'25, Lehigh University*  
 
 **Asim Turk**  
