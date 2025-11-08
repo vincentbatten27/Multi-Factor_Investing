@@ -69,7 +69,11 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 *4+1 Financial Engineering '27, Lehigh University*  
 *Investment Managment | Data Science*                  
 [LinkedIn](https://www.linkedin.com/in/vincentbatten27/)
-# New Contributors
+# Other Contributors
+
+**Kshitij Bhandari**  
+*M.S. Financial Engineering '26, Lehigh University*  
+
 **Nate Songstad**  
 *M.S. Financial Engineering '27, Lehigh University*  
 
