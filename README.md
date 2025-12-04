@@ -77,10 +77,6 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 **Nate Songstad**  
 *M.S. Financial Engineering '27, Lehigh University*  
 
-**Sethu Chandra**  
-*IBE Financial Engineering '28, Lehigh University*  
-
-
 # Former Contributors
 **Shisheng Liang**  
 *M.S. Financial Engineering'25, Lehigh University*  
