@@ -966,23 +966,7 @@ def new_run_with_backtest_rebalance(inyears,outyears,betaA,betaB,betaC, rebal_fr
     
             
             
-        
-
-
-# In[313]:
-
-
-df = pd.read_csv('Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_2015.csv')
-
-
-# In[320]:
-
-
-df.sort_values(by='reward')[-10:]
-
-
-# In[115]:
-
+    
 
 def new_run_with_backtest_rebalance_cv(inyears,outyears,betaA,betaB,betaC, rebal_freq):
     global start_date
