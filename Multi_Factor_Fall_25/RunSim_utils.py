@@ -35,6 +35,9 @@ from dateutil.relativedelta import relativedelta
 import time
 import requests
 from openpyxl import load_workbook
+import os
+from pathlib import Path
+SCRIPT_DIR = Path(__file__).parent
 
 
 def extract_stock_data(df, tdickers, start, end):
@@ -2601,17 +2604,19 @@ def compute_rbpsa_betas(df_X, df_y):
 
 
 def run_sp500_data():
-    new_data1=pd.read_csv('daat.csv')
-    new_data1.drop(columns='PERMNO',inplace=True)
-    new_data1.rename(columns={'date':'Date','TICKER':'Ticker'},inplace=True)
-    index=pd.read_csv('spy_data.csv')
-    indexgspc1=index.copy()
-    indexgspc1.rename(columns={'DATE':'Date','sprtrn':'SP_500'},inplace=True)
-    indexgspc1.drop(columns={'vwretd','spindx'},inplace=True)
-    indexgspc1.set_index('Date',inplace=True)
+    new_data1 = pd.read_csv(SCRIPT_DIR / 'daat.csv')
+    new_data1.drop(columns='PERMNO', inplace=True)
+    new_data1.rename(columns={'date':'Date', 'TICKER':'Ticker'}, inplace=True)
+
+    index = pd.read_csv(SCRIPT_DIR / 'spy_data.csv')
+    indexgspc1 = index.copy()
+    indexgspc1.rename(columns={'DATE':'Date', 'sprtrn':'SP_500'}, inplace=True)
+    indexgspc1.drop(columns={'vwretd', 'spindx'}, inplace=True)
+    indexgspc1.set_index('Date', inplace=True)
     indexgspc1.index = pd.to_datetime(indexgspc1.index)
-    indexgspc1=indexgspc1.dropna()
-    spy_mom = pd.read_excel('Total SPX.xlsx')
+    indexgspc1 = indexgspc1.dropna()
+
+    spy_mom = pd.read_excel(SCRIPT_DIR / 'Total SPX.xlsx')
     spy_mom['Year'] = spy_mom['Source.Name'].str.extract(r'(\d{4})').astype(int)
     spy_mom.set_index('Year', inplace = True)
     spy_mom['Ticker'] = spy_mom['Ticker'].str.replace(r' [A-Z]{2,3} Equity$', '', regex=True)
