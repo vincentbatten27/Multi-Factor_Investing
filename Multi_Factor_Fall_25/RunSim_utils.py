@@ -102,47 +102,54 @@ def extract_spy_data(df, start, end):
 # In[93]:
 
 
-# Creates tickers ([]), monthly_data (DF), and base_w ([])
-def get_spy2(start,end):
+def get_spy2(start, end):
     ### Get tickers + setup
-    global tickers,spy
-    valid_tickers = []
-
+    global tickers, spy
+    
     new_monthly_data1 = new_monthly_data.copy()
     new_monthly_data1.index = pd.to_datetime(new_monthly_data1.index)
     
     spy_year1 = pd.to_datetime(start).year
-    spy_year2 = min(spy_year1 + 4, 2024) # this should just be end.year actually 
-
-    subset = spy_yoy_tickers.loc[str(spy_year1):str(spy_year2)]
-    sets = [set(row.dropna()) for _, row in subset.iterrows()]
-    candidate = set.intersection(*sets) if sets else set()
-
-    # keep only columns that exist
-    candidate = list(candidate.intersection(new_monthly_data.columns))
-
-    # one slice, one NA check across all candidate tickers
-    window = new_monthly_data.loc[str(spy_year1):str(spy_year2), candidate]
-    valid_tickers = window.columns[~window.isna().any(axis=0)].tolist()
-
-    tickers = valid_tickers
+    spy_year2 = min(spy_year1 + 4, 2025)  # Universe selection year (currently max 2025)
     
+    # =========================================================================
+    # STEP 1: Define UNIVERSE - what stocks CAN be chosen
+    # Based on S&P 500 membership in spy_year2
+    # =========================================================================
+    universe_year = spy_yoy_tickers.loc[str(spy_year2):str(spy_year2)]
+    if len(universe_year) > 0:
+        candidate_universe = set(universe_year.iloc[0].dropna())
+    else:
+        candidate_universe = set()
+    
+    # Keep only tickers that exist in new_monthly_data
+    candidate_universe = list(candidate_universe.intersection(new_monthly_data.columns))
+    
+    # =========================================================================
+    # STEP 2: Check DATA AVAILABILITY - which stocks have enough historical data
+    # Based on new_monthly_data during regression window (start to end, ~3 years)
+    # =========================================================================
+    regression_window = new_monthly_data.loc[str(spy_year1):str(pd.to_datetime(end).year), candidate_universe]
+    valid_tickers = regression_window.columns[~regression_window.isna().any(axis=0)].tolist()
+    
+    tickers = valid_tickers
     
     ### Import the monthly data
     global monthly_data
     global base_w
-    monthly_data = extract_stock_data(new_monthly_data,tickers,start=start,end=end)
+    monthly_data = extract_stock_data(new_monthly_data, tickers, start=start, end=end)
     
     # Assign equal weight as base weights
     base_w = {k: 1/len(monthly_data.columns) for k in monthly_data.columns}
     base_w = pd.DataFrame.from_dict(base_w, orient='index', columns=['Weight'])
-
-    spy=extract_spy_data(indexgspc,start,end)
-    if monthly_data.index.equals(spy.index)==True:
-        for i,j in monthly_data.iterrows():
-            monthly_data.loc[i,'SP_500']=spy.loc[i,'SP_500']
-    # Adjusting tickers list as some tickers will not be included in the monthly_data if there is no data for test date range
-    tickers = list(monthly_data.columns[:-1]) 
+    
+    spy = extract_spy_data(indexgspc, start, end)
+    if monthly_data.index.equals(spy.index) == True:
+        for i, j in monthly_data.iterrows():
+            monthly_data.loc[i, 'SP_500'] = spy.loc[i, 'SP_500']
+    
+    # Adjusting tickers list
+    tickers = list(monthly_data.columns[:-1])
 
 
 # In[94]:
@@ -238,7 +245,6 @@ def Transaction_Costs(initialize=False):
 
 def extract_weights(c_portf):     
     if B == starting_budget:
-        
         c_portf["Value"] = c_portf["Value"].astype(float)
 
         if c_portf["Value"].sum() > float(B) + 1e-9:
@@ -455,7 +461,11 @@ def simulator(beta1,beta2,beta3,begin,final,budget,number,c_portf):
     #Adjusting tickers list as some tickers will not be included in the monthly_data if there is no data for test date range
     global tickers
     global starting_budget
-    starting_budget=budget
+    
+    if sb_bool == True:
+        starting_budget = budget
+        sb_bool = False
+
     tickers = list(monthly_data.columns[:-1])
     tick_index = tickers + ['SP_500']
     
