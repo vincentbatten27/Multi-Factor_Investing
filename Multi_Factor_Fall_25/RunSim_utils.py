@@ -27,7 +27,6 @@ import statsmodels.api as sm
 import random
 import pulp
 from sklearn.preprocessing import LabelEncoder
-import pandas_datareader.data as reader
 import pandas as pd
 import requests
 from pulp import LpProblem, LpMaximize, LpVariable, LpMinimize, LpBinary, lpSum
@@ -36,7 +35,6 @@ from dateutil.relativedelta import relativedelta
 import time
 import requests
 from openpyxl import load_workbook
-import pandas_datareader.data as web
 
 
 def extract_stock_data(df, tdickers, start, end):
