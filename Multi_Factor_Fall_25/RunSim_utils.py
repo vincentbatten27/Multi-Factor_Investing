@@ -165,7 +165,7 @@ def download_with_retry(tickers, start, end, retries=3, delay=5):
 
 def famafrenchreturns():
     global ff3_monthly
-    ff3_monthly = pd.read_csv('ff3_wrds.csv')
+    ff3_monthly = pd.read_csv(SCRIPT_DIR /'ff3_wrds.csv')
     ff3_monthly.set_index(ff3_monthly['dateff'], inplace=True)
     ff3_monthly.index.name = 'Date'
     ff3_monthly = ff3_monthly.drop(columns={'dateff'})
@@ -934,7 +934,7 @@ def new_run_with_backtest_rebalance(inyears,outyears,betaA,betaB,betaC, rebal_fr
             newbudget=1000000*oos1_new_performance['Optimized Portfolio'][-1]
             curr_year = pd.to_datetime(inner_n_year_after).year
             try:
-                curr_df = pd.read_csv(f'Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv')
+                curr_df = pd.read_csv(fSCRIPT_DIR /'Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv')
             except:
                 print('File DNE')
             curr_df = curr_df.sort_values(by='reward')
@@ -1012,7 +1012,7 @@ def new_run_with_backtest_rebalance_cv(inyears,outyears,betaA,betaB,betaC, rebal
         end_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=37))
         curr_year = (pd.to_datetime(n_year_after_updated)+relativedelta(months=1)).year 
         try:
-            curr_df = pd.read_csv(f'yrebal_explored_sortino_o1_{curr_year}.csv')            
+            curr_df = pd.read_csv(fSCRIPT_DIR /'yrebal_explored_sortino_o1_{curr_year}.csv')            
         except:
             print('File DNE')
         X = curr_df[['c1', 'c2', 'c3', 'reward']]
@@ -1209,11 +1209,11 @@ def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC, rebal_f
             print(start_date1)
             try:
                 #curr_df = pd.read_csv(f'Active_Strategy_CSVs/yrebal_explored_sortino_active_{curr_year}.csv')
-                curr_df = pd.read_csv(f'Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv')    
+                curr_df = pd.read_csv(fSCRIPT_DIR /'Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv')    
                 #curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{curr_year}.csv')            
                 #curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{pd.to_datetime(start_date1).date()}.csv')  
             except FileNotFoundError:
-                curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_2018-07-01.csv')  
+                curr_df = pd.read_csv(fSCRIPT_DIR /'yrebal_explored_sortino_resample_surrogate_2018-07-01.csv')  
                 print('File DNE')
             curr_df = curr_df.sort_values(by='reward') 
             betaA = curr_df.iloc[-1][0]
@@ -2636,17 +2636,17 @@ def run_sp500_data():
 
 def run_N50_data():
     #   Indian Market Run 
-    new_data1=pd.read_csv('nifty_stocks_data (1).csv')
+    new_data1=pd.read_csv(SCRIPT_DIR /'nifty_stocks_data (1).csv')
     new_data1.drop(columns='PERMNO',inplace=True)
     new_data1.rename(columns={'date':'Date','TICKER':'Ticker'},inplace=True)
-    index=pd.read_csv('spy_data.csv')
+    index=pd.read_csv(SCRIPT_DIR /'spy_data.csv')
     indexgspc1=index.copy()
     indexgspc1.rename(columns={'DATE':'Date','sprtrn':'SP_500'},inplace=True)
     indexgspc1.drop(columns={'vwretd','spindx'},inplace=True)
     indexgspc1.set_index('Date',inplace=True)
     indexgspc1.index = pd.to_datetime(indexgspc1.index)
     indexgspc1=indexgspc1.dropna()
-    n_50 = pd.read_csv('Nifty_50.csv')
+    n_50 = pd.read_csv(SCRIPT_DIR /'Nifty_50.csv')
     n_50 = n_50.replace("BAJAJ-AUTO", np.nan)
 
     n_50.set_index('Year', inplace=True)
