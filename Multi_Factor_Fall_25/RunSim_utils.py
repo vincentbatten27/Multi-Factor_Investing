@@ -110,7 +110,7 @@ def get_spy2(start, end):
     new_monthly_data1.index = pd.to_datetime(new_monthly_data1.index)
     
     spy_year1 = pd.to_datetime(start).year
-    spy_year2 = min(spy_year1 + 4, 2025)  # Universe selection year (currently max 2025)
+    spy_year2 = min(spy_year1 + 3, 2026)  # Universe selection year (currently max 2025)
     
     # =========================================================================
     # STEP 1: Define UNIVERSE - what stocks CAN be chosen
@@ -243,28 +243,36 @@ def Transaction_Costs(initialize=False):
 # In[99]:
 
 
-def extract_weights(c_portf):     
-    if B == starting_budget:
-        c_portf["Value"] = c_portf["Value"].astype(float)
+# not working on back tests now?
+def extract_weights(c_portf):   
+    c_portf.index = c_portf['Ticker']
+    if B == starting_budget:  
+        c_portf['Weight'] = c_portf['Value']/B    
+        return c_portf[['Weight']].astype(float)
+    asof = pd.to_datetime(end).to_period('M').to_timestamp()
+    tickers1 = c_portf.index.tolist()
+    c_portf_ret = new_monthly_data[tickers1].loc[asof].astype(float) + 1
+    
+    # Ensure alignment by setting the index explicitly
 
-        if c_portf["Value"].sum() > float(B) + 1e-9:
-            raise ValueError("Constrained holdings exceed total portfolio value (B).")
-
-        c_portf["Weight"] = c_portf["Value"] / float(B)
-        return c_portf[["Weight"] ].astype(float)
-
-    asof = end.to_period('M').to_timestamp() 
-    c_portf_ret = new_monthly_data[c_portf.index.tolist()].loc[asof].astype(float) + 1    
-    c_portf['Value'] = c_portf['Value'] * c_portf_ret
+    c_portf_ret.index = c_portf.index
+    
+    # Update values with returns
+    c_portf['Value'] = c_portf['Value'].astype(float) * c_portf_ret
+    
+    # Calculate weights
     raw_weights = c_portf['Value'] / B
     total_w = raw_weights.sum()
+    
     if total_w > 1.0:
         c_portf['Weight'] = raw_weights / total_w
     else:
         c_portf['Weight'] = raw_weights
     constrained_weights = c_portf[['Weight']].astype(float)
-    if constrained_weights['Weight'].sum() > 1:
-        raise ValueError(f"Invalid weight(s) > 1")
+    
+    if constrained_weights['Weight'].sum() > 1 + 1e-9:  # Added tolerance
+        raise ValueError(f"Invalid weight(s) > 1: sum = {constrained_weights['Weight'].sum()}")
+    
     return constrained_weights
 
 
@@ -461,7 +469,7 @@ def simulator(beta1,beta2,beta3,begin,final,budget,number,c_portf):
     #Adjusting tickers list as some tickers will not be included in the monthly_data if there is no data for test date range
     global tickers
     global starting_budget
-    
+    global sb_bool
     if sb_bool == True:
         starting_budget = budget
         sb_bool = False
@@ -1755,7 +1763,8 @@ def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,
     global indexgspc 
     global spy_yoy_tickers 
     global oos1_list, oos1_list_yearly, oos1_average
-
+    global sb_bool
+    sb_bool = True
     new_data1, indexgspc1, spy_yoy_tickers1 = run_sp500_data()
     new_data = new_data1.copy()
     price_monthly_data=new_data.drop(columns='RET')
