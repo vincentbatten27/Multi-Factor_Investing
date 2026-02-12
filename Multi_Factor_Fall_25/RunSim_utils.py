@@ -1757,7 +1757,6 @@ def monte_carlo_simulation_rlm(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years
 # In[134]:
 
 def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings):
-    global new_data 
     global price_monthly_data 
     global new_monthly_data 
     global indexgspc 
@@ -1765,12 +1764,16 @@ def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,
     global oos1_list, oos1_list_yearly, oos1_average
     global sb_bool
     sb_bool = True
-    new_data1, indexgspc1, spy_yoy_tickers1 = run_sp500_data()
-    new_data = new_data1.copy()
-    price_monthly_data=new_data.drop(columns='RET')
-    new_monthly_data=new_data.drop(columns='PRC')
-    price_monthly_data=price_monthly_data.pivot_table(index='Date', columns='Ticker', values='PRC', aggfunc='first')
-    new_monthly_data=new_monthly_data.pivot_table(index='Date', columns='Ticker', values='RET', aggfunc='first')   
+    indexgspc1, spy_yoy_tickers1 = run_sp500_data()
+
+    price_monthly_data= pd.read_csv('monthly_prices.csv')
+    price_monthly_data.columns.name = 'Ticker'
+    price_monthly_data = price_monthly_data.set_index('Date')
+
+    new_monthly_data= pd.read_csv('monthly_returns.csv')
+    new_monthly_data.columns.name = 'Ticker'
+    new_monthly_data = new_monthly_data.set_index('Date')
+    
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings)
@@ -1784,14 +1787,17 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
     global oos1_list, oos1_list_yearly, oos1_average
 
     if index == 'SPY':
-        new_data1, indexgspc1, spy_yoy_tickers1 = run_sp500_data()
+        indexgspc1, spy_yoy_tickers1 = run_sp500_data()
     elif index =='Nifty':
-        new_data1, indexgspc1, spy_yoy_tickers1 = run_N50_data()
+        indexgspc1, spy_yoy_tickers1 = run_N50_data()
     new_data = new_data1.copy()
-    price_monthly_data=new_data.drop(columns='RET')
-    new_monthly_data=new_data.drop(columns='PRC')
-    price_monthly_data=price_monthly_data.pivot_table(index='Date', columns='Ticker', values='PRC', aggfunc='first')
-    new_monthly_data=new_monthly_data.pivot_table(index='Date', columns='Ticker', values='RET', aggfunc='first')   
+    price_monthly_data= pd.read_csv('monthly_prices.csv')
+    price_monthly_data.columns.name = 'Ticker'
+    price_monthly_data = price_monthly_data.set_index('Date')
+
+    new_monthly_data= pd.read_csv('monthly_returns.csv')
+    new_monthly_data.columns.name = 'Ticker'
+    new_monthly_data = new_monthly_data.set_index('Date')
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     results = []
