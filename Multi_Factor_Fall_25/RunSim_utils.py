@@ -2666,7 +2666,7 @@ def run_sp500_data():
 
 def run_N50_data():
     #   Indian Market Run 
-    new_data1=pd.read_csv(SCRIPT_DIR /'nifty_stocks_data (1).csv')
+    new_data1=pd.read_csv(SCRIPT_DIR / 'nifty_stocks_data (1).csv')
     new_data1.drop(columns='PERMNO',inplace=True)
     new_data1.rename(columns={'date':'Date','TICKER':'Ticker'},inplace=True)
     index=pd.read_csv(SCRIPT_DIR /'spy_data.csv')
@@ -2761,7 +2761,7 @@ def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
         current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
     t2s = []
     if not months_to_scrape:
-        log = pd.read_csv('scrape_log.csv')
+        log = pd.read_csv(SCRIPT_DIR / 'scrape_log.csv')
         log.index = log['Ticker']
         t2s = log.loc[log['Status'] == 'RATE_LIMITED', 'Ticker'].tolist()
         tickers_to_scrape = [t for t in t2s if t in tickers_to_scrape]
@@ -2807,7 +2807,7 @@ def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
     results_df = pd.concat(series_list, axis=1)
 
     try: 
-        existing_log = pd.read_csv('scrape_log.csv')
+        existing_log = pd.read_csv(SCRIPT_DIR /'scrape_log.csv')
         existing_log.set_index('Ticker', inplace=True)
     except FileNotFoundError:
         existing_log = pd.DataFrame(columns=['Ticker', 'Status'])
