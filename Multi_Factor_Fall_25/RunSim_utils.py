@@ -2751,7 +2751,7 @@ def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
     current_date = pd.Timestamp.now()
     curr_month = (current_date).to_period('M').to_timestamp()
     tickers_to_scrape = spy_yoy_tickers1.stack().unique().tolist()
-    latest_date = price_monthly_data.index.max() 
+    latest_date = pd.to_dateimt(price_monthly_data.index.max()) 
     months_to_scrape = []
     current_check = latest_date + pd.DateOffset(months=1)
     current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
