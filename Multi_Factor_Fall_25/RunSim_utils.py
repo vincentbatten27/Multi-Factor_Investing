@@ -1794,7 +1794,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
         indexgspc1, spy_yoy_tickers1 = run_sp500_data()
     elif index =='Nifty':
         indexgspc1, spy_yoy_tickers1 = run_N50_data()
-    new_data = new_data1.copy()
+    #new_data = new_data1.copy()
     price_monthly_data= pd.read_csv('monthly_prices.csv')
     price_monthly_data.columns.name = 'Ticker'
     price_monthly_data = price_monthly_data.set_index('Date')
@@ -1802,7 +1802,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
     new_monthly_data= pd.read_csv('monthly_returns.csv')
     new_monthly_data.columns.name = 'Ticker'
     new_monthly_data = new_monthly_data.set_index('Date')
-    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data)
+    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data,spy_yoy_tickers1)
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     results = []
@@ -2744,7 +2744,7 @@ def get_consistently_worst_portfolio(dfs, portfolio_col='portfolio'):
     # Return the corresponding original DataFrame
     return dfs[worst_index]
 
-def update_stock_data(price_monthly_data, new_monthly_data):
+def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
     global results
     if test() == None:
         return price_monthly_data, new_monthly_data
@@ -2829,7 +2829,6 @@ def test():
     response.raise_for_status()
     text = response.text
     if 'Exceeded the daily hits limit' in text or 'daily hits limit' in text.lower():
-        print('Hit Limit')
         return None
     return 'Good'
 
