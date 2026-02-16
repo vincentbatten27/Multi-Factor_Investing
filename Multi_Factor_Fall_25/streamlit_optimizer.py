@@ -45,6 +45,10 @@ with col3:
                 'Ticker': new_ticker.upper().strip(),
                 'Value': new_value
             })
+            if 'new_ticker' in st.session_state:
+                del st.session_state.new_ticker
+            if 'new_value' in st.session_state:
+                del st.session_state.new_value
             st.rerun()
 
 # Display current holdings
@@ -243,8 +247,10 @@ if st.button("Retrieve Weights", type="primary", use_container_width=True):
                 target_hml=target_hml
             )
             # ===================================================================
-            
-            st.success("Optimization Complete!")
+            results_container = st.container()
+            with results_container:
+
+                st.success("Optimization Complete. Results Below:")
             
             # Show debug info about what was returned
             with st.expander("Debug: Data returned from optimizer"):

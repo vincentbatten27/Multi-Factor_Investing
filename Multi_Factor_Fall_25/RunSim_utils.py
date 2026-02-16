@@ -37,6 +37,7 @@ import requests
 from openpyxl import load_workbook
 import os
 from pathlib import Path
+from io import StringIO
 SCRIPT_DIR = Path(__file__).parent
 
 
@@ -1726,7 +1727,8 @@ def monte_carlo_simulation_rlm(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years
     price_monthly_data=new_data.drop(columns='RET')
     new_monthly_data=new_data.drop(columns='PRC')
     price_monthly_data=price_monthly_data.pivot_table(index='Date', columns='Ticker', values='PRC', aggfunc='first')
-    new_monthly_data=new_monthly_data.pivot_table(index='Date', columns='Ticker', values='RET', aggfunc='first')   
+    new_monthly_data=new_monthly_data.pivot_table(index='Date', columns='Ticker', values='RET', aggfunc='first')  
+    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data) 
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     results = []
@@ -1774,6 +1776,8 @@ def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,
     new_monthly_data.columns.name = 'Ticker'
     new_monthly_data = new_monthly_data.set_index('Date')
     
+    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data) #maybe not
+    
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings)
@@ -1798,6 +1802,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
     new_monthly_data= pd.read_csv('monthly_returns.csv')
     new_monthly_data.columns.name = 'Ticker'
     new_monthly_data = new_monthly_data.set_index('Date')
+    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data)
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     results = []
@@ -2629,9 +2634,9 @@ def compute_rbpsa_betas(df_X, df_y):
 
 
 def run_sp500_data():
-    new_data1 = pd.read_csv(SCRIPT_DIR / 'daat.csv')
-    new_data1.drop(columns='PERMNO', inplace=True)
-    new_data1.rename(columns={'date':'Date', 'TICKER':'Ticker'}, inplace=True)
+    # new_data1 = pd.read_csv(SCRIPT_DIR / 'daat.csv')
+    # new_data1.drop(columns='PERMNO', inplace=True)
+    # new_data1.rename(columns={'date':'Date', 'TICKER':'Ticker'}, inplace=True)
 
     index = pd.read_csv(SCRIPT_DIR / 'spy_data.csv')
     indexgspc1 = index.copy()
@@ -2653,7 +2658,7 @@ def run_sp500_data():
     grouped.columns = ["" for _ in grouped.columns]
     spy_yoy_tickers1 = grouped
     
-    return new_data1, indexgspc1, spy_yoy_tickers1
+    return indexgspc1, spy_yoy_tickers1
 
 
 # In[152]:
@@ -2739,6 +2744,130 @@ def get_consistently_worst_portfolio(dfs, portfolio_col='portfolio'):
     # Return the corresponding original DataFrame
     return dfs[worst_index]
 
+def update_stock_data(price_monthly_data, new_monthly_data):
+    global results
+    if test() == None:
+        return price_monthly_data, new_monthly_data
+    current_date = pd.Timestamp.now()
+    curr_month = (current_date).to_period('M').to_timestamp()
+    tickers_to_scrape = spy_yoy_tickers1.stack().unique().tolist()
+    latest_date = price_monthly_data.index.max() 
+    months_to_scrape = []
+    current_check = latest_date + pd.DateOffset(months=1)
+    current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
+    while current_check <= curr_month:
+        months_to_scrape.append(current_check)
+        current_check = current_check + pd.DateOffset(months=1)
+        current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
+    t2s = []
+    if not months_to_scrape:
+        log = pd.read_csv('scrape_log.csv')
+        log.index = log['Ticker']
+        t2s = log.loc[log['Status'] == 'RATE_LIMITED', 'Ticker'].tolist()
+        tickers_to_scrape = [t for t in t2s if t in tickers_to_scrape]
+    
+    if not months_to_scrape and len(tickers_to_scrape) == 0:
+        return price_monthly_data, new_monthly_data
+    results = []
+    print(f'Updating Month(s): {months_to_scrape}')
+    for tick1 in tickers_to_scrape:
+        results.append(fetch_stooq_full_history(tick1))
+ 
+    series_to_join = []
+    for ticker, data, status in results:
+        if status == "SUCCESS":
+            series_to_join.append(data.rename(ticker.upper()))
+
+    master_df = pd.concat(series_to_join, axis=1)
+
+    master_df.sort_index(inplace=True)
+    master_df.index = master_df.index.to_period('M').to_timestamp()
+    if months_to_scrape:
+        if len(months_to_scrape) > 1: 
+            master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[-1]]
+        else: 
+            master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[0]]
+        price_monthly_data = pd.concat([price_monthly_data, master_df_adj])
+    else:
+        new_cols = [col for col in master_df.columns if col not in price_monthly_data.columns]
+        if new_cols:
+            price_monthly_data = price_monthly_data.join(master_df[new_cols], how='outer')
+    price_monthly_data.to_csv('monthly_prices.csv')
+    if months_to_scrape:
+        return_df = master_df.loc[months_to_scrape[0]-relativedelta(months=1):months_to_scrape[-1]].pct_change().dropna()
+        new_monthly_data = pd.concat([new_monthly_data, return_df])
+    else:
+        return_df = master_df.pct_change().dropna()
+        new_cols = [col for col in return_df.columns if col not in new_monthly_data.columns]
+        if new_cols:
+            new_monthly_data = new_monthly_data.join(return_df[new_cols], how='outer')
+
+    new_monthly_data.to_csv('monthly_returns.csv')
+    series_list = [data.rename(ticker) for ticker, data, status in results if status == "SUCCESS"]
+    results_df = pd.concat(series_list, axis=1)
+
+    try: 
+        existing_log = pd.read_csv('scrape_log.csv')
+        existing_log.set_index('Ticker', inplace=True)
+    except FileNotFoundError:
+        existing_log = pd.DataFrame(columns=['Ticker', 'Status'])
+        existing_log.set_index('Ticker', inplace=True)
+
+    log_data = [(res[0], res[2]) for res in results]
+    new_log_df = pd.DataFrame(log_data, columns=['Ticker', 'Status'])
+    new_log_df.set_index('Ticker', inplace=True)
+
+    for ticker in new_log_df.index:
+        existing_log.loc[ticker] = new_log_df.loc[ticker]
+
+    existing_log.reset_index().to_csv('scrape_log.csv', index=False)
+    return price_monthly_data, new_monthly_data
+
+def test(): 
+    url = f"https://stooq.com/q/d/l/?s={'a.us'}&i=m"
+    response = requests.get(url, timeout=15)
+    response.raise_for_status()
+    text = response.text
+    if 'Exceeded the daily hits limit' in text or 'daily hits limit' in text.lower():
+        print('Hit Limit')
+        return None
+    return 'Good'
+
+def fetch_stooq_full_history(ticker):
+    try:
+        stooq_ticker = ticker.lower()
+        if not stooq_ticker.endswith('.us'):
+            stooq_ticker = f"{stooq_ticker}.us"
+        
+        url = f"https://stooq.com/q/d/l/?s={stooq_ticker}&i=m"
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
+        
+        text = response.text
+        
+        # Check for rate limit
+        if 'Exceeded the daily hits limit' in text or 'daily hits limit' in text.lower():
+            return ticker, None, "RATE_LIMITED"
+        
+        if 'Date' not in text:
+            return ticker, None, "NO_DATA"
+        
+        # Parse CSV
+        df = pd.read_csv(StringIO(text))
+        if df.empty:
+            return ticker, None, "EMPTY"
+        
+        df['Date'] = pd.to_datetime(df['Date'])
+        df.set_index('Date', inplace=True)
+        df.sort_index(inplace=True)
+        
+        if 'Close' not in df.columns:
+            return ticker, None, "NO_CLOSE"
+        
+        return ticker, df['Close'],'SUCCESS'
+        
+    except Exception as e:
+        return ticker, None, "ERROR"
 
 # In[ ]:
 
