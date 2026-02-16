@@ -1776,7 +1776,7 @@ def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,
     new_monthly_data.columns.name = 'Ticker'
     new_monthly_data = new_monthly_data.set_index('Date')
     
-    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data) #maybe not
+    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data,spy_yoy_tickers1)
     
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
