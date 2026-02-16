@@ -1768,11 +1768,11 @@ def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,
     sb_bool = True
     indexgspc1, spy_yoy_tickers1 = run_sp500_data()
 
-    price_monthly_data= pd.read_csv(fSCRIPT_DIR /'monthly_prices.csv')
+    price_monthly_data= pd.read_csv(SCRIPT_DIR / 'monthly_prices.csv')
     price_monthly_data.columns.name = 'Ticker'
     price_monthly_data = price_monthly_data.set_index('Date')
 
-    new_monthly_data= pd.read_csv(fSCRIPT_DIR /'monthly_returns.csv')
+    new_monthly_data= pd.read_csv(SCRIPT_DIR / 'monthly_returns.csv')
     new_monthly_data.columns.name = 'Ticker'
     new_monthly_data = new_monthly_data.set_index('Date')
     
