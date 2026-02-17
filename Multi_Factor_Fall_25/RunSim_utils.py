@@ -27,7 +27,6 @@ import statsmodels.api as sm
 import random
 import pulp
 from sklearn.preprocessing import LabelEncoder
-import pandas_datareader.data as reader
 import pandas as pd
 import requests
 from pulp import LpProblem, LpMaximize, LpVariable, LpMinimize, LpBinary, lpSum
@@ -36,7 +35,10 @@ from dateutil.relativedelta import relativedelta
 import time
 import requests
 from openpyxl import load_workbook
-import pandas_datareader.data as web
+import os
+from pathlib import Path
+from io import StringIO
+SCRIPT_DIR = Path(__file__).parent
 
 
 def extract_stock_data(df, tdickers, start, end):
@@ -101,47 +103,54 @@ def extract_spy_data(df, start, end):
 # In[93]:
 
 
-# Creates tickers ([]), monthly_data (DF), and base_w ([])
-def get_spy2(start,end):
+def get_spy2(start, end):
     ### Get tickers + setup
-    global tickers,spy
-    valid_tickers = []
-
+    global tickers, spy
+    
     new_monthly_data1 = new_monthly_data.copy()
     new_monthly_data1.index = pd.to_datetime(new_monthly_data1.index)
     
     spy_year1 = pd.to_datetime(start).year
-    spy_year2 = min(spy_year1 + 4, 2024) # this should just be end.year actually 
-
-    subset = spy_yoy_tickers.loc[str(spy_year1):str(spy_year2)]
-    sets = [set(row.dropna()) for _, row in subset.iterrows()]
-    candidate = set.intersection(*sets) if sets else set()
-
-    # keep only columns that exist
-    candidate = list(candidate.intersection(new_monthly_data.columns))
-
-    # one slice, one NA check across all candidate tickers
-    window = new_monthly_data.loc[str(spy_year1):str(spy_year2), candidate]
-    valid_tickers = window.columns[~window.isna().any(axis=0)].tolist()
-
-    tickers = valid_tickers
+    spy_year2 = min(spy_year1 + 3, 2026)  # Universe selection year (currently max 2025)
     
+    # =========================================================================
+    # STEP 1: Define UNIVERSE - what stocks CAN be chosen
+    # Based on S&P 500 membership in spy_year2
+    # =========================================================================
+    universe_year = spy_yoy_tickers.loc[str(spy_year2):str(spy_year2)]
+    if len(universe_year) > 0:
+        candidate_universe = set(universe_year.iloc[0].dropna())
+    else:
+        candidate_universe = set()
+    
+    # Keep only tickers that exist in new_monthly_data
+    candidate_universe = list(candidate_universe.intersection(new_monthly_data.columns))
+    
+    # =========================================================================
+    # STEP 2: Check DATA AVAILABILITY - which stocks have enough historical data
+    # Based on new_monthly_data during regression window (start to end, ~3 years)
+    # =========================================================================
+    regression_window = new_monthly_data.loc[str(spy_year1):str(pd.to_datetime(end).year), candidate_universe]
+    valid_tickers = regression_window.columns[~regression_window.isna().any(axis=0)].tolist()
+    
+    tickers = valid_tickers
     
     ### Import the monthly data
     global monthly_data
     global base_w
-    monthly_data = extract_stock_data(new_monthly_data,tickers,start=start,end=end)
+    monthly_data = extract_stock_data(new_monthly_data, tickers, start=start, end=end)
     
     # Assign equal weight as base weights
     base_w = {k: 1/len(monthly_data.columns) for k in monthly_data.columns}
     base_w = pd.DataFrame.from_dict(base_w, orient='index', columns=['Weight'])
-
-    spy=extract_spy_data(indexgspc,start,end)
-    if monthly_data.index.equals(spy.index)==True:
-        for i,j in monthly_data.iterrows():
-            monthly_data.loc[i,'SP_500']=spy.loc[i,'SP_500']
-    # Adjusting tickers list as some tickers will not be included in the monthly_data if there is no data for test date range
-    tickers = list(monthly_data.columns[:-1]) 
+    
+    spy = extract_spy_data(indexgspc, start, end)
+    if monthly_data.index.equals(spy.index) == True:
+        for i, j in monthly_data.iterrows():
+            monthly_data.loc[i, 'SP_500'] = spy.loc[i, 'SP_500']
+    
+    # Adjusting tickers list
+    tickers = list(monthly_data.columns[:-1])
 
 
 # In[94]:
@@ -164,7 +173,7 @@ def download_with_retry(tickers, start, end, retries=3, delay=5):
 
 def famafrenchreturns():
     global ff3_monthly
-    ff3_monthly = pd.read_csv('ff3_wrds.csv')
+    ff3_monthly = pd.read_csv(SCRIPT_DIR /'ff3_wrds.csv')
     ff3_monthly.set_index(ff3_monthly['dateff'], inplace=True)
     ff3_monthly.index.name = 'Date'
     ff3_monthly = ff3_monthly.drop(columns={'dateff'})
@@ -235,29 +244,36 @@ def Transaction_Costs(initialize=False):
 # In[99]:
 
 
-def extract_weights(c_portf):     
-    if B == starting_budget:
-        
-        c_portf["Value"] = c_portf["Value"].astype(float)
+# not working on back tests now?
+def extract_weights(c_portf):   
+    c_portf.index = c_portf['Ticker']
+    if B == starting_budget:  
+        c_portf['Weight'] = c_portf['Value']/B    
+        return c_portf[['Weight']].astype(float)
+    asof = pd.to_datetime(end).to_period('M').to_timestamp()
+    tickers1 = c_portf.index.tolist()
+    c_portf_ret = new_monthly_data[tickers1].loc[asof].astype(float) + 1
+    
+    # Ensure alignment by setting the index explicitly
 
-        if c_portf["Value"].sum() > float(B) + 1e-9:
-            raise ValueError("Constrained holdings exceed total portfolio value (B).")
-
-        c_portf["Weight"] = c_portf["Value"] / float(B)
-        return c_portf[["Weight"] ].astype(float)
-
-    asof = end.to_period('M').to_timestamp() 
-    c_portf_ret = new_monthly_data[c_portf.index.tolist()].loc[asof].astype(float) + 1    
-    c_portf['Value'] = c_portf['Value'] * c_portf_ret
+    c_portf_ret.index = c_portf.index
+    
+    # Update values with returns
+    c_portf['Value'] = c_portf['Value'].astype(float) * c_portf_ret
+    
+    # Calculate weights
     raw_weights = c_portf['Value'] / B
     total_w = raw_weights.sum()
+    
     if total_w > 1.0:
         c_portf['Weight'] = raw_weights / total_w
     else:
         c_portf['Weight'] = raw_weights
     constrained_weights = c_portf[['Weight']].astype(float)
-    if constrained_weights['Weight'].sum() > 1:
-        raise ValueError(f"Invalid weight(s) > 1")
+    
+    if constrained_weights['Weight'].sum() > 1 + 1e-9:  # Added tolerance
+        raise ValueError(f"Invalid weight(s) > 1: sum = {constrained_weights['Weight'].sum()}")
+    
     return constrained_weights
 
 
@@ -454,7 +470,11 @@ def simulator(beta1,beta2,beta3,begin,final,budget,number,c_portf):
     #Adjusting tickers list as some tickers will not be included in the monthly_data if there is no data for test date range
     global tickers
     global starting_budget
-    starting_budget=budget
+    global sb_bool
+    if sb_bool == True:
+        starting_budget = budget
+        sb_bool = False
+
     tickers = list(monthly_data.columns[:-1])
     tick_index = tickers + ['SP_500']
     
@@ -933,7 +953,7 @@ def new_run_with_backtest_rebalance(inyears,outyears,betaA,betaB,betaC, rebal_fr
             newbudget=1000000*oos1_new_performance['Optimized Portfolio'][-1]
             curr_year = pd.to_datetime(inner_n_year_after).year
             try:
-                curr_df = pd.read_csv(f'Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv')
+                curr_df = pd.read_csv(fSCRIPT_DIR /'Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv')
             except:
                 print('File DNE')
             curr_df = curr_df.sort_values(by='reward')
@@ -968,23 +988,7 @@ def new_run_with_backtest_rebalance(inyears,outyears,betaA,betaB,betaC, rebal_fr
     
             
             
-        
-
-
-# In[313]:
-
-
-df = pd.read_csv('Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_2015.csv')
-
-
-# In[320]:
-
-
-df.sort_values(by='reward')[-10:]
-
-
-# In[115]:
-
+    
 
 def new_run_with_backtest_rebalance_cv(inyears,outyears,betaA,betaB,betaC, rebal_freq):
     global start_date
@@ -1027,7 +1031,7 @@ def new_run_with_backtest_rebalance_cv(inyears,outyears,betaA,betaB,betaC, rebal
         end_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=37))
         curr_year = (pd.to_datetime(n_year_after_updated)+relativedelta(months=1)).year 
         try:
-            curr_df = pd.read_csv(f'yrebal_explored_sortino_o1_{curr_year}.csv')            
+            curr_df = pd.read_csv(fSCRIPT_DIR /'yrebal_explored_sortino_o1_{curr_year}.csv')            
         except:
             print('File DNE')
         X = curr_df[['c1', 'c2', 'c3', 'reward']]
@@ -1224,11 +1228,11 @@ def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC, rebal_f
             print(start_date1)
             try:
                 #curr_df = pd.read_csv(f'Active_Strategy_CSVs/yrebal_explored_sortino_active_{curr_year}.csv')
-                curr_df = pd.read_csv(f'Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv')    
+                curr_df = pd.read_csv(fSCRIPT_DIR /'Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv')    
                 #curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{curr_year}.csv')            
                 #curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{pd.to_datetime(start_date1).date()}.csv')  
             except FileNotFoundError:
-                curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_2018-07-01.csv')  
+                curr_df = pd.read_csv(fSCRIPT_DIR /'yrebal_explored_sortino_resample_surrogate_2018-07-01.csv')  
                 print('File DNE')
             curr_df = curr_df.sort_values(by='reward') 
             betaA = curr_df.iloc[-1][0]
@@ -1723,7 +1727,8 @@ def monte_carlo_simulation_rlm(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years
     price_monthly_data=new_data.drop(columns='RET')
     new_monthly_data=new_data.drop(columns='PRC')
     price_monthly_data=price_monthly_data.pivot_table(index='Date', columns='Ticker', values='PRC', aggfunc='first')
-    new_monthly_data=new_monthly_data.pivot_table(index='Date', columns='Ticker', values='RET', aggfunc='first')   
+    new_monthly_data=new_monthly_data.pivot_table(index='Date', columns='Ticker', values='RET', aggfunc='first')  
+    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data) 
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     results = []
@@ -1754,19 +1759,25 @@ def monte_carlo_simulation_rlm(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years
 # In[134]:
 
 def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings):
-    global new_data 
     global price_monthly_data 
     global new_monthly_data 
     global indexgspc 
     global spy_yoy_tickers 
     global oos1_list, oos1_list_yearly, oos1_average
+    global sb_bool
+    sb_bool = True
+    indexgspc1, spy_yoy_tickers1 = run_sp500_data()
 
-    new_data1, indexgspc1, spy_yoy_tickers1 = run_sp500_data()
-    new_data = new_data1.copy()
-    price_monthly_data=new_data.drop(columns='RET')
-    new_monthly_data=new_data.drop(columns='PRC')
-    price_monthly_data=price_monthly_data.pivot_table(index='Date', columns='Ticker', values='PRC', aggfunc='first')
-    new_monthly_data=new_monthly_data.pivot_table(index='Date', columns='Ticker', values='RET', aggfunc='first')   
+    price_monthly_data= pd.read_csv(SCRIPT_DIR / 'monthly_prices.csv')
+    price_monthly_data.columns.name = 'Ticker'
+    price_monthly_data = price_monthly_data.set_index('Date')
+
+    new_monthly_data= pd.read_csv(SCRIPT_DIR / 'monthly_returns.csv')
+    new_monthly_data.columns.name = 'Ticker'
+    new_monthly_data = new_monthly_data.set_index('Date')
+    
+    # price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data,spy_yoy_tickers1)
+    
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings)
@@ -1780,14 +1791,18 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
     global oos1_list, oos1_list_yearly, oos1_average
 
     if index == 'SPY':
-        new_data1, indexgspc1, spy_yoy_tickers1 = run_sp500_data()
+        indexgspc1, spy_yoy_tickers1 = run_sp500_data()
     elif index =='Nifty':
-        new_data1, indexgspc1, spy_yoy_tickers1 = run_N50_data()
-    new_data = new_data1.copy()
-    price_monthly_data=new_data.drop(columns='RET')
-    new_monthly_data=new_data.drop(columns='PRC')
-    price_monthly_data=price_monthly_data.pivot_table(index='Date', columns='Ticker', values='PRC', aggfunc='first')
-    new_monthly_data=new_monthly_data.pivot_table(index='Date', columns='Ticker', values='RET', aggfunc='first')   
+        indexgspc1, spy_yoy_tickers1 = run_N50_data()
+    #new_data = new_data1.copy()
+    price_monthly_data= pd.read_csv('monthly_prices.csv')
+    price_monthly_data.columns.name = 'Ticker'
+    price_monthly_data = price_monthly_data.set_index('Date')
+
+    new_monthly_data= pd.read_csv('monthly_returns.csv')
+    new_monthly_data.columns.name = 'Ticker'
+    new_monthly_data = new_monthly_data.set_index('Date')
+    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data,spy_yoy_tickers1)
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     results = []
@@ -2619,17 +2634,19 @@ def compute_rbpsa_betas(df_X, df_y):
 
 
 def run_sp500_data():
-    new_data1=pd.read_csv('daat.csv')
-    new_data1.drop(columns='PERMNO',inplace=True)
-    new_data1.rename(columns={'date':'Date','TICKER':'Ticker'},inplace=True)
-    index=pd.read_csv('spy_data.csv')
-    indexgspc1=index.copy()
-    indexgspc1.rename(columns={'DATE':'Date','sprtrn':'SP_500'},inplace=True)
-    indexgspc1.drop(columns={'vwretd','spindx'},inplace=True)
-    indexgspc1.set_index('Date',inplace=True)
+    # new_data1 = pd.read_csv(SCRIPT_DIR / 'daat.csv')
+    # new_data1.drop(columns='PERMNO', inplace=True)
+    # new_data1.rename(columns={'date':'Date', 'TICKER':'Ticker'}, inplace=True)
+
+    index = pd.read_csv(SCRIPT_DIR / 'spy_data.csv')
+    indexgspc1 = index.copy()
+    indexgspc1.rename(columns={'DATE':'Date', 'sprtrn':'SP_500'}, inplace=True)
+    indexgspc1.drop(columns={'vwretd', 'spindx'}, inplace=True)
+    indexgspc1.set_index('Date', inplace=True)
     indexgspc1.index = pd.to_datetime(indexgspc1.index)
-    indexgspc1=indexgspc1.dropna()
-    spy_mom = pd.read_excel('Total SPX.xlsx')
+    indexgspc1 = indexgspc1.dropna()
+
+    spy_mom = pd.read_excel(SCRIPT_DIR / 'Total SPX.xlsx')
     spy_mom['Year'] = spy_mom['Source.Name'].str.extract(r'(\d{4})').astype(int)
     spy_mom.set_index('Year', inplace = True)
     spy_mom['Ticker'] = spy_mom['Ticker'].str.replace(r' [A-Z]{2,3} Equity$', '', regex=True)
@@ -2641,7 +2658,7 @@ def run_sp500_data():
     grouped.columns = ["" for _ in grouped.columns]
     spy_yoy_tickers1 = grouped
     
-    return new_data1, indexgspc1, spy_yoy_tickers1
+    return indexgspc1, spy_yoy_tickers1
 
 
 # In[152]:
@@ -2649,17 +2666,17 @@ def run_sp500_data():
 
 def run_N50_data():
     #   Indian Market Run 
-    new_data1=pd.read_csv('nifty_stocks_data (1).csv')
+    new_data1=pd.read_csv(SCRIPT_DIR / 'nifty_stocks_data (1).csv')
     new_data1.drop(columns='PERMNO',inplace=True)
     new_data1.rename(columns={'date':'Date','TICKER':'Ticker'},inplace=True)
-    index=pd.read_csv('spy_data.csv')
+    index=pd.read_csv(SCRIPT_DIR /'spy_data.csv')
     indexgspc1=index.copy()
     indexgspc1.rename(columns={'DATE':'Date','sprtrn':'SP_500'},inplace=True)
     indexgspc1.drop(columns={'vwretd','spindx'},inplace=True)
     indexgspc1.set_index('Date',inplace=True)
     indexgspc1.index = pd.to_datetime(indexgspc1.index)
     indexgspc1=indexgspc1.dropna()
-    n_50 = pd.read_csv('Nifty_50.csv')
+    n_50 = pd.read_csv(SCRIPT_DIR /'Nifty_50.csv')
     n_50 = n_50.replace("BAJAJ-AUTO", np.nan)
 
     n_50.set_index('Year', inplace=True)
@@ -2727,6 +2744,129 @@ def get_consistently_worst_portfolio(dfs, portfolio_col='portfolio'):
     # Return the corresponding original DataFrame
     return dfs[worst_index]
 
+def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
+    global results
+    if test() == None:
+        return price_monthly_data, new_monthly_data
+    current_date = pd.Timestamp.now()
+    curr_month = (current_date).to_period('M').to_timestamp()
+    tickers_to_scrape = spy_yoy_tickers1.stack().unique().tolist()
+    latest_date = pd.to_datetime(price_monthly_data.index.max()) 
+    months_to_scrape = []
+    current_check = latest_date + pd.DateOffset(months=1)
+    current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
+    while current_check <= curr_month:
+        months_to_scrape.append(current_check)
+        current_check = current_check + pd.DateOffset(months=1)
+        current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
+    t2s = []
+    if not months_to_scrape:
+        log = pd.read_csv(SCRIPT_DIR / 'scrape_log.csv')
+        log.index = log['Ticker']
+        t2s = log.loc[log['Status'] == 'RATE_LIMITED', 'Ticker'].tolist()
+        tickers_to_scrape = [t for t in t2s if t in tickers_to_scrape]
+    
+    if not months_to_scrape and len(tickers_to_scrape) == 0:
+        return price_monthly_data, new_monthly_data
+    results = []
+    print(f'Updating Month(s): {months_to_scrape}')
+    for tick1 in tickers_to_scrape:
+        results.append(fetch_stooq_full_history(tick1))
+ 
+    series_to_join = []
+    for ticker, data, status in results:
+        if status == "SUCCESS":
+            series_to_join.append(data.rename(ticker.upper()))
+
+    master_df = pd.concat(series_to_join, axis=1)
+
+    master_df.sort_index(inplace=True)
+    master_df.index = master_df.index.to_period('M').to_timestamp()
+    if months_to_scrape:
+        if len(months_to_scrape) > 1: 
+            master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[-1]]
+        else: 
+            master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[0]]
+        price_monthly_data = pd.concat([price_monthly_data, master_df_adj])
+    else:
+        new_cols = [col for col in master_df.columns if col not in price_monthly_data.columns]
+        if new_cols:
+            price_monthly_data = price_monthly_data.join(master_df[new_cols], how='outer')
+    price_monthly_data.to_csv('monthly_prices.csv')
+    if months_to_scrape:
+        return_df = master_df.loc[months_to_scrape[0]-relativedelta(months=1):months_to_scrape[-1]].pct_change().dropna()
+        new_monthly_data = pd.concat([new_monthly_data, return_df])
+    else:
+        return_df = master_df.pct_change().dropna()
+        new_cols = [col for col in return_df.columns if col not in new_monthly_data.columns]
+        if new_cols:
+            new_monthly_data = new_monthly_data.join(return_df[new_cols], how='outer')
+
+    new_monthly_data.to_csv('monthly_returns.csv')
+    series_list = [data.rename(ticker) for ticker, data, status in results if status == "SUCCESS"]
+    results_df = pd.concat(series_list, axis=1)
+
+    try: 
+        existing_log = pd.read_csv(SCRIPT_DIR /'scrape_log.csv')
+        existing_log.set_index('Ticker', inplace=True)
+    except FileNotFoundError:
+        existing_log = pd.DataFrame(columns=['Ticker', 'Status'])
+        existing_log.set_index('Ticker', inplace=True)
+
+    log_data = [(res[0], res[2]) for res in results]
+    new_log_df = pd.DataFrame(log_data, columns=['Ticker', 'Status'])
+    new_log_df.set_index('Ticker', inplace=True)
+
+    for ticker in new_log_df.index:
+        existing_log.loc[ticker] = new_log_df.loc[ticker]
+
+    existing_log.reset_index().to_csv('scrape_log.csv', index=False)
+    return price_monthly_data, new_monthly_data
+
+def test(): 
+    url = f"https://stooq.com/q/d/l/?s={'a.us'}&i=m"
+    response = requests.get(url, timeout=15)
+    response.raise_for_status()
+    text = response.text
+    if 'Exceeded the daily hits limit' in text or 'daily hits limit' in text.lower():
+        return None
+    return 'Good'
+
+def fetch_stooq_full_history(ticker):
+    try:
+        stooq_ticker = ticker.lower()
+        if not stooq_ticker.endswith('.us'):
+            stooq_ticker = f"{stooq_ticker}.us"
+        
+        url = f"https://stooq.com/q/d/l/?s={stooq_ticker}&i=m"
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
+        
+        text = response.text
+        
+        # Check for rate limit
+        if 'Exceeded the daily hits limit' in text or 'daily hits limit' in text.lower():
+            return ticker, None, "RATE_LIMITED"
+        
+        if 'Date' not in text:
+            return ticker, None, "NO_DATA"
+        
+        # Parse CSV
+        df = pd.read_csv(StringIO(text))
+        if df.empty:
+            return ticker, None, "EMPTY"
+        
+        df['Date'] = pd.to_datetime(df['Date'])
+        df.set_index('Date', inplace=True)
+        df.sort_index(inplace=True)
+        
+        if 'Close' not in df.columns:
+            return ticker, None, "NO_CLOSE"
+        
+        return ticker, df['Close'],'SUCCESS'
+        
+    except Exception as e:
+        return ticker, None, "ERROR"
 
 # In[ ]:
 
