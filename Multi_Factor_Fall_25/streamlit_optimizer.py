@@ -26,29 +26,41 @@ st.divider()
 st.header("Holdings to Keep (Optional)")
 st.caption("If you have specific positions you want to keep, enter them here. Otherwise leave blank. *Must be S&P 500 tickers*")
 
-# Option A: Manual entry with add/remove buttons
 if 'holdings' not in st.session_state:
     st.session_state.holdings = []
+
+# Counter used to force widget re-render after adding (clears inputs)
+if 'input_counter' not in st.session_state:
+    st.session_state.input_counter = 0
 
 col1, col2, col3 = st.columns([2, 2, 1])
 
 with col1:
-    new_ticker = st.text_input("Ticker", key="new_ticker", placeholder="e.g., AAPL")
+    new_ticker = st.text_input(
+        "Ticker",
+        placeholder="e.g., AAPL",
+        key=f"new_ticker_{st.session_state.input_counter}"
+    )
 with col2:
-    new_value = st.number_input("Value ($)", key="new_value", min_value=0.0, step=1000.0, format="%.2f")
+    new_value = st.number_input(
+        "Value ($)",
+        min_value=0.0,
+        value=None,
+        placeholder="e.g., 10000",
+        step=1000.0,
+        format="%.2f",
+        key=f"new_value_{st.session_state.input_counter}"
+    )
 with col3:
-    st.write("")  # Spacer
-    st.write("")  # Spacer
+    st.write("")
+    st.write("")
     if st.button("➕ Add"):
-        if new_ticker and new_value > 0:
+        if new_ticker and new_value and new_value > 0:
             st.session_state.holdings.append({
                 'Ticker': new_ticker.upper().strip(),
                 'Value': new_value
             })
-            if 'new_ticker' in st.session_state:
-                del st.session_state.new_ticker
-            if 'new_value' in st.session_state:
-                del st.session_state.new_value
+            st.session_state.input_counter += 1  # Forces new widget keys = blank inputs
             st.rerun()
 
 # Display current holdings
@@ -57,7 +69,6 @@ if st.session_state.holdings:
     
     st.write("**Current Holdings:**")
     
-    # Show holdings with delete button for each
     for idx, row in holdings_df.iterrows():
         col1, col2, col3 = st.columns([2, 2, 1])
         col1.write(f"**{row['Ticker']}**")
@@ -66,7 +77,6 @@ if st.session_state.holdings:
             st.session_state.holdings.pop(idx)
             st.rerun()
     
-    # Summary
     total_constrained = holdings_df['Value'].sum()
     remaining = total_value - total_constrained
     
@@ -88,7 +98,6 @@ st.divider()
 # =============================================================================
 st.header("Target FF3 Exposures")
 
-# Preset selector
 preset = st.selectbox(
     "Choose a preset or enter custom values",
     [
@@ -100,7 +109,6 @@ preset = st.selectbox(
     ]
 )
 
-# Set values based on preset
 if preset == "Custom":
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -136,7 +144,6 @@ elif preset == "Large Growth (1, -0.5, -0.5)":
 else:  # Aggressive Growth
     target_mkt, target_smb, target_hml = 1.2, -0.3, -0.3
 
-# Display selected values (even for presets)
 if preset != "Custom":
     col1, col2, col3 = st.columns(3)
     col1.metric("MKT (Market)", f"{target_mkt:.2f}")
@@ -152,25 +159,30 @@ def optimize_portfolio(total_value, constrained_holdings, target_mkt, target_smb
     """
     Optimize portfolio to achieve target FF3 exposures.
     """
-    start = pd.to_datetime('2022-01-01')  # Set to beginning of current month - 3 years
-    end = pd.to_datetime('2024-12-31')    # Set to EOM, or ~3 years + of start 
-    
-    # Call the optimization function from RunSim_utils
+    today = pd.Timestamp.now()
+    if today.day >= 2:
+        target_date = today.replace(day=1)
+    else:
+        target_date = (today - pd.DateOffset(months=1)).replace(day=1)
+    target_date = target_date.normalize()
+    curr_weights = target_date.date()
+    end = curr_weights - relativedelta(days=1)
+    start = curr_weights - relativedelta(months=36)
+
     opt_portf_weights = front_end_plug(
-        target_mkt, 
-        target_smb, 
+        target_mkt,
+        target_smb,
         target_hml,
         start,
         end,
-        total_value, 
+        total_value,
         50,  # max_positions
         constrained_holdings
     )
-    
-    # Rename columns for display
+
     results_df = opt_portf_weights.rename(columns={'New Weights': 'Weight'})
-    
-    return results_df
+
+    return results_df, target_date
 
 # =============================================================================
 # SUMMARY OF INPUTS
@@ -229,30 +241,22 @@ if st.button("Retrieve Weights", type="primary", use_container_width=True):
     
     with st.spinner("Running optimization... This may take a moment."):
         
-        # Prepare constrained_holdings
         if st.session_state.holdings:
             constrained_holdings = pd.DataFrame(st.session_state.holdings)
         else:
-            constrained_holdings = None  # Pass None if no holdings
+            constrained_holdings = None
         
         try:
-            # ===================================================================
-            # CALL YOUR OPTIMIZATION FUNCTION
-            # ===================================================================
-            results_df = optimize_portfolio(
+            results_df, target_date = optimize_portfolio(
                 total_value=total_value,
                 constrained_holdings=constrained_holdings,
                 target_mkt=target_mkt,
                 target_smb=target_smb,
                 target_hml=target_hml
             )
-            # ===================================================================
-            results_container = st.container()
-            with results_container:
 
-                st.success("Optimization Complete. Results Below:")
+            st.success(f"Optimization Complete — using data as of **{target_date.strftime('%B %Y')}**. Results Below:")
             
-            # Show debug info about what was returned
             with st.expander("Debug: Data returned from optimizer"):
                 st.write(f"**Shape:** {results_df.shape}")
                 st.write(f"**Columns:** {results_df.columns.tolist()}")
@@ -266,61 +270,46 @@ if st.button("Retrieve Weights", type="primary", use_container_width=True):
             # =============================================================================
             st.header("Recommended Portfolio Weights")
             
-            # Prepare display dataframe
             display_df = results_df.copy()
             
-            # Handle different possible column names and formats
-            # Add Weight % column if it doesn't exist
             if 'Weight' in display_df.columns and 'Weight %' not in display_df.columns:
-                # Check if weights are in decimal format (0.15) or percentage (15.0)
                 if display_df['Weight'].max() <= 1.0:
-                    # Decimal format - convert to percentage
                     display_df['Weight %'] = (display_df['Weight'] * 100).round(2)
                 else:
-                    # Already percentage
                     display_df['Weight %'] = display_df['Weight'].round(2)
             
-            # Add Value column if it doesn't exist
             if 'Value' not in display_df.columns and 'Weight' in display_df.columns:
                 if display_df['Weight'].max() <= 1.0:
                     display_df['Value'] = (display_df['Weight'] * total_value).round(2)
                 else:
                     display_df['Value'] = (display_df['Weight'] / 100 * total_value).round(2)
             
-            # Format Value as currency string for display
             if 'Value' in display_df.columns:
                 display_df['Value $'] = display_df['Value'].apply(lambda x: f"${x:,.2f}")
             
-            # Select columns to display
             display_cols = []
             
-            # Add ticker column (whatever it's called)
             ticker_col = None
             for possible_name in ['Ticker', 'Symbol', 'Stock', 'ticker', 'symbol']:
                 if possible_name in display_df.columns:
                     ticker_col = possible_name
-                    display_cols.append(possible_name)
-                    display_cols = [possible_name] + [c for c in display_cols if c != possible_name]
                     break
             
-            # Add weight percentage
+            if ticker_col:
+                display_cols.append(ticker_col)
+            
             if 'Weight %' in display_df.columns:
                 display_cols.append('Weight %')
             
-            # Add value
             if 'Value $' in display_df.columns:
                 display_cols.append('Value $')
             elif 'Value' in display_df.columns:
                 display_cols.append('Value')
             
-            # Add any other important columns
             for col in display_df.columns:
                 if col not in display_cols and col not in ['Weight', 'Value']:
                     display_cols.append(col)
             
-            # Display the results table
-            if ticker_col:
-                display_cols = [ticker_col] + [c for c in display_cols if c != ticker_col]
             st.dataframe(
                 display_df[display_cols],
                 hide_index=False,
@@ -328,7 +317,6 @@ if st.button("Retrieve Weights", type="primary", use_container_width=True):
                 height=500
             )
             
-            # Summary metrics
             st.divider()
             col1, col2, col3 = st.columns(3)
             
@@ -341,7 +329,6 @@ if st.button("Retrieve Weights", type="primary", use_container_width=True):
                 total_allocated = display_df['Value'].sum()
                 col3.metric("Total Allocated", f"${total_allocated:,.2f}")
             
-            # Download button
             st.divider()
             csv = results_df.to_csv(index=True)
             st.download_button(

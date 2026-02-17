@@ -2744,14 +2744,15 @@ def get_consistently_worst_portfolio(dfs, portfolio_col='portfolio'):
     # Return the corresponding original DataFrame
     return dfs[worst_index]
 
-def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
+def update_stock_data(price_monthly_data, new_monthly_data):
     global results
     if test() == None:
         return price_monthly_data, new_monthly_data
+    tickers_to_scrape = spy_yoy_tickers1.stack().unique().tolist()
+    total_tickers = len(tickers_to_scrape)
     current_date = pd.Timestamp.now()
     curr_month = (current_date).to_period('M').to_timestamp()
-    tickers_to_scrape = spy_yoy_tickers1.stack().unique().tolist()
-    latest_date = pd.to_datetime(price_monthly_data.index.max()) 
+    latest_date = price_monthly_data.index.max() 
     months_to_scrape = []
     current_check = latest_date + pd.DateOffset(months=1)
     current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
@@ -2759,14 +2760,19 @@ def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
         months_to_scrape.append(current_check)
         current_check = current_check + pd.DateOffset(months=1)
         current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
+    months_to_scrape = sorted(months_to_scrape)
     t2s = []
     if not months_to_scrape:
-        log = pd.read_csv(SCRIPT_DIR / 'scrape_log.csv')
+        log = pd.read_csv('scrape_log.csv')
         log.index = log['Ticker']
         t2s = log.loc[log['Status'] == 'RATE_LIMITED', 'Ticker'].tolist()
         tickers_to_scrape = [t for t in t2s if t in tickers_to_scrape]
-    
-    if not months_to_scrape and len(tickers_to_scrape) == 0:
+    for month in price_monthly_data.index.unique():
+        non_nan_count = price_monthly_data.loc[month].notna().sum()
+    if non_nan_count < total_tickers * 0.65:  
+        if month not in months_to_scrape:
+            months_to_scrape.append(month)
+    if len(tickers_to_scrape) == 0:
         return price_monthly_data, new_monthly_data
     results = []
     print(f'Updating Month(s): {months_to_scrape}')
@@ -2782,45 +2788,38 @@ def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
 
     master_df.sort_index(inplace=True)
     master_df.index = master_df.index.to_period('M').to_timestamp()
-    if months_to_scrape:
-        if len(months_to_scrape) > 1: 
-            master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[-1]]
-        else: 
-            master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[0]]
-        price_monthly_data = pd.concat([price_monthly_data, master_df_adj])
-    else:
-        new_cols = [col for col in master_df.columns if col not in price_monthly_data.columns]
-        if new_cols:
-            price_monthly_data = price_monthly_data.join(master_df[new_cols], how='outer')
+    if len(months_to_scrape) > 1: 
+        master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[-1]]
+    else: 
+        master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[0]]
+    
+    # Split into existing months (need merge) vs new months (need concat)
+    existing_months = [m for m in months_to_scrape if m in price_monthly_data.index]
+    new_months = [m for m in months_to_scrape if m not in price_monthly_data.index]
+    
+    if existing_months:
+        price_monthly_data = master_df_adj.loc[existing_months].combine_first(price_monthly_data)
+    if new_months:
+        price_monthly_data = pd.concat([price_monthly_data, master_df_adj.loc[new_months]])    
+          
     price_monthly_data.to_csv('monthly_prices.csv')
-    if months_to_scrape:
-        return_df = master_df.loc[months_to_scrape[0]-relativedelta(months=1):months_to_scrape[-1]].pct_change().dropna()
-        new_monthly_data = pd.concat([new_monthly_data, return_df])
-    else:
-        return_df = master_df.pct_change().dropna()
-        new_cols = [col for col in return_df.columns if col not in new_monthly_data.columns]
-        if new_cols:
-            new_monthly_data = new_monthly_data.join(return_df[new_cols], how='outer')
+    return_df = master_df.pct_change()
 
+# Split into existing months (need merge) vs new months (need concat)
+    existing_months = [m for m in return_df.index if m in new_monthly_data.index]
+    new_months = [m for m in return_df.index if m not in new_monthly_data.index]
+
+    if existing_months:
+        new_monthly_data = return_df.loc[existing_months].combine_first(new_monthly_data)
+
+    if new_months:
+        new_monthly_data = pd.concat([new_monthly_data, return_df.loc[new_months]])
+    new_monthly_data = new_monthly_data.replace(0.0, np.nan)
     new_monthly_data.to_csv('monthly_returns.csv')
-    series_list = [data.rename(ticker) for ticker, data, status in results if status == "SUCCESS"]
-    results_df = pd.concat(series_list, axis=1)
-
-    try: 
-        existing_log = pd.read_csv(SCRIPT_DIR /'scrape_log.csv')
-        existing_log.set_index('Ticker', inplace=True)
-    except FileNotFoundError:
-        existing_log = pd.DataFrame(columns=['Ticker', 'Status'])
-        existing_log.set_index('Ticker', inplace=True)
-
     log_data = [(res[0], res[2]) for res in results]
     new_log_df = pd.DataFrame(log_data, columns=['Ticker', 'Status'])
-    new_log_df.set_index('Ticker', inplace=True)
-
-    for ticker in new_log_df.index:
-        existing_log.loc[ticker] = new_log_df.loc[ticker]
-
-    existing_log.reset_index().to_csv('scrape_log.csv', index=False)
+    new_log_df.to_csv('scrape_log.csv',index=False)
+    
     return price_monthly_data, new_monthly_data
 
 def test(): 
