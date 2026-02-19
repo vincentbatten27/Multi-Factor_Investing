@@ -14,3 +14,4 @@ requests
 openpyxl
 python-dateutil
 pathlib
+alpha_vantage.timeseries

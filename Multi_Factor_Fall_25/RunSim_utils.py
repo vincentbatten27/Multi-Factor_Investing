@@ -6,6 +6,7 @@
 # In[91]:
 # To ignore all warnings
 import warnings
+import getFamaFrenchFactors as gff
 warnings.filterwarnings("ignore")
 import matplotlib.pyplot as plt
 import numpy as np, numpy.random
@@ -38,6 +39,7 @@ from openpyxl import load_workbook
 import os
 from pathlib import Path
 from io import StringIO
+from alpha_vantage.timeseries import TimeSeries
 SCRIPT_DIR = Path(__file__).parent
 
 
@@ -173,18 +175,83 @@ def download_with_retry(tickers, start, end, retries=3, delay=5):
 
 def famafrenchreturns():
     global ff3_monthly
-    ff3_monthly = pd.read_csv(SCRIPT_DIR /'ff3_wrds.csv')
-    ff3_monthly.set_index(ff3_monthly['dateff'], inplace=True)
-    ff3_monthly.index.name = 'Date'
-    ff3_monthly = ff3_monthly.drop(columns={'dateff'})
-    ff3_monthly.columns = 'Mkt-RF','SMB','HML','RF'
-    ff3_monthly.index = pd.to_datetime(ff3_monthly.index)
+    # Fama French Monthly Returns Data using getFamaFrenchFactors module
+    ff3_monthly = gff.famaFrench3Factor(frequency='m')
+    ff3_monthly.rename(columns={"date_ff_factors": 'Date'}, inplace=True)
+    ff3_monthly.set_index('Date', inplace=True)
     ff3_monthly.index = ff3_monthly.index.to_period('M').to_timestamp('D')
     # Keeping Only the Dates in the monthly_data
-    ff3_monthly = ff3_monthly.loc[monthly_data.index]
+    ff3_monthly = ff3_monthly.reindex(new_monthly_data.index).dropna()
+    # Keeping Only the Dates in the monthly_data
+    est_df = estimate_ff3_from_holdings(new_monthly_data, ff3_monthly.index[-1], ff3_monthly)
+    ff3_monthly = pd.concat([ff3_monthly,est_df])
+
+def estimate_ff3_from_holdings(new_monthly_data, last_known_date, ff3_source):
+    # Filter for dates after the last known date
+    returns_subset = new_monthly_data[new_monthly_data.index > last_known_date].copy()
     
+    if returns_subset.empty:
+        return None
+    
+    results = []
+    
+    # Get the last available RF rate as a fallback
+    last_rf = ff3_source['RF'].iloc[-1]
+    
+    for date, row in returns_subset.iterrows():
+        r = row.dropna()
+        if r.empty:
+            continue
+            
+        # --- [NEW] Get the RF Rate ---
+        # Try to find the exact date in your ff3_monthly data
+        if date in ff3_source.index:
+            rf = ff3_source.loc[date, 'RF']
+        else:
+            rf = last_rf # Use latest known rate if predicting for future dates
+        
+        n = len(r)
+        tickers = r.index.tolist()
+        hist = new_monthly_data[tickers].loc[:date].iloc[:-1]
+        
+        if hist.empty:
+            continue
 
+        cum_ret = hist.add(1).prod() - 1
+        size_rank = cum_ret.rank(ascending=True) 
 
+        if len(hist) >= 12:
+            prior_12m = hist.iloc[-12:].add(1).prod() - 1
+        else:
+            prior_12m = cum_ret 
+            
+        value_rank = prior_12m.rank(ascending=True) 
+        
+        small = r[size_rank <= n/3].mean()
+        big   = r[size_rank >= 2*n/3].mean()
+        smb   = small - big
+        
+        high  = r[value_rank <= n/3].mean()
+        low   = r[value_rank >= 2*n/3].mean()
+        hml   = high - low
+
+        # --- [ADJUSTED] Mkt-RF Calculation ---
+        # Excess market return = Average stock return - Risk Free Rate
+        mkt_rf = r.mean() - rf 
+        
+        results.append({
+            'Date':   date,
+            'Mkt-RF': mkt_rf,
+            'SMB':    smb,
+            'HML':    hml,
+            'RF':     rf   # Adding the RF to the output for completeness
+        })
+    
+    if not results:
+        return None
+        
+    est = pd.DataFrame(results).set_index('Date')
+    return est
 # In[96]:
 
 
@@ -1775,7 +1842,8 @@ def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,
     new_monthly_data= pd.read_csv(SCRIPT_DIR / 'monthly_returns.csv')
     new_monthly_data.columns.name = 'Ticker'
     new_monthly_data = new_monthly_data.set_index('Date')
-    
+    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors='coerce')
+
     # price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data,spy_yoy_tickers1)
     
     indexgspc = indexgspc1.copy()
@@ -2634,10 +2702,7 @@ def compute_rbpsa_betas(df_X, df_y):
 
 
 def run_sp500_data():
-    # new_data1 = pd.read_csv(SCRIPT_DIR / 'daat.csv')
-    # new_data1.drop(columns='PERMNO', inplace=True)
-    # new_data1.rename(columns={'date':'Date', 'TICKER':'Ticker'}, inplace=True)
-
+    
     index = pd.read_csv(SCRIPT_DIR / 'spy_data.csv')
     indexgspc1 = index.copy()
     indexgspc1.rename(columns={'DATE':'Date', 'sprtrn':'SP_500'}, inplace=True)
@@ -2645,7 +2710,8 @@ def run_sp500_data():
     indexgspc1.set_index('Date', inplace=True)
     indexgspc1.index = pd.to_datetime(indexgspc1.index)
     indexgspc1 = indexgspc1.dropna()
-
+    indexgspc1 = indexgspc1.drop(columns=['Unnamed: 0'])
+    indexgspc1 = update_spy(indexgspc1)
     spy_mom = pd.read_excel(SCRIPT_DIR / 'Total SPX.xlsx')
     spy_mom['Year'] = spy_mom['Source.Name'].str.extract(r'(\d{4})').astype(int)
     spy_mom.set_index('Year', inplace = True)
@@ -2659,6 +2725,30 @@ def run_sp500_data():
     spy_yoy_tickers1 = grouped
     
     return indexgspc1, spy_yoy_tickers1
+
+def update_spy(indexgspc1):
+    ts = TimeSeries(key='CPT85HPR5S2L405H', output_format='pandas')
+    data, meta_data = ts.get_monthly_adjusted(symbol='SPY')
+    
+    # Clean column names
+    data.columns = [col.split('. ')[1] for col in data.columns]
+    
+    # Sort ascending (AV returns descending)
+    data = data.sort_index(ascending=True)
+    
+    # Calculate return: pct change from previous month's adjusted close
+    data['SP_500'] = data['close'].pct_change()
+    
+    # Re-index to 1st of the month to match your convention
+    # (Dec 1st = return from Nov 1st close to Dec 1st close)
+    data.index = data.index.to_period('M').to_timestamp()  # 'MS' = month start
+    
+    # Filter to only new months not already in indexgspc1
+    latest_date = indexgspc1.index.max()
+    data = data[data.index > latest_date]
+    av_spy = data['SP_500'].dropna() 
+    indexgspc1 = pd.concat([indexgspc1,av_spy])
+    return indexgspc1
 
 
 # In[152]:
@@ -2676,6 +2766,8 @@ def run_N50_data():
     indexgspc1.set_index('Date',inplace=True)
     indexgspc1.index = pd.to_datetime(indexgspc1.index)
     indexgspc1=indexgspc1.dropna()
+    indexgspc1 = indexgspc1.drop(columns=['Unnamed: 0'])
+
     n_50 = pd.read_csv(SCRIPT_DIR /'Nifty_50.csv')
     n_50 = n_50.replace("BAJAJ-AUTO", np.nan)
 
@@ -2815,6 +2907,7 @@ def update_stock_data(price_monthly_data, new_monthly_data):
     if new_months:
         new_monthly_data = pd.concat([new_monthly_data, return_df.loc[new_months]])
     new_monthly_data = new_monthly_data.replace(0.0, np.nan)
+    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors='coerce')
     new_monthly_data.to_csv('monthly_returns.csv')
     log_data = [(res[0], res[2]) for res in results]
     new_log_df = pd.DataFrame(log_data, columns=['Ticker', 'Status'])
