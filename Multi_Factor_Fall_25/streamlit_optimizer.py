@@ -3,7 +3,7 @@ import pandas as pd
 from RunSim_utils import *
 
 st.title("Multi-Factor Investing")
-st.caption("Optimize portfolio weights to achieve target three fama-french exposures")
+st.caption("Optimize portfolio weights to achieve target three fama-french exposures from S&P 500 universe.")
 
 # =============================================================================
 # INPUT 1: Total Portfolio Value
