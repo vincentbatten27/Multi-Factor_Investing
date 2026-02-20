@@ -194,11 +194,11 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("Portfolio")
     st.write(f"**Total Value:** ${total_value:,.2f}")
-    
+
     if st.session_state.holdings:
         st.write(f"**Constrained Holdings:** {len(st.session_state.holdings)}")
         constrained_df = pd.DataFrame(st.session_state.holdings)
-        st.dataframe(constrained_df, hide_index=True, use_container_width=True)
+        st.dataframe(constrained_df, hide_index=True, width='stretch')
     else:
         st.write("**No constrained holdings**")
 
@@ -237,15 +237,15 @@ target_hml = {target_hml}
 # =============================================================================
 st.divider()
 
-if st.button("Retrieve Weights", type="primary", use_container_width=True):
-    
+if st.button("Retrieve Weights", type="primary", width='stretch'):
+
     with st.spinner("Running optimization... This may take a moment."):
-        
+
         if st.session_state.holdings:
             constrained_holdings = pd.DataFrame(st.session_state.holdings)
         else:
             constrained_holdings = None
-        
+
         try:
             results_df, target_date = optimize_portfolio(
                 total_value=total_value,
@@ -256,79 +256,76 @@ if st.button("Retrieve Weights", type="primary", use_container_width=True):
             )
 
             st.success(f"Optimization Complete — using data as of **{target_date.strftime('%B %Y')}**. Results Below:")
-            
+
             with st.expander("Debug: Data returned from optimizer"):
                 st.write(f"**Shape:** {results_df.shape}")
                 st.write(f"**Columns:** {results_df.columns.tolist()}")
                 st.write(f"**First few rows:**")
                 st.dataframe(results_df.head(10))
-            
+
             st.divider()
-            
+
             # =============================================================================
             # DISPLAY RESULTS
             # =============================================================================
             st.header("Recommended Portfolio Weights")
-            
+
             display_df = results_df.copy()
-            
+
             if 'Weight' in display_df.columns and 'Weight %' not in display_df.columns:
                 if display_df['Weight'].max() <= 1.0:
                     display_df['Weight %'] = (display_df['Weight'] * 100).round(2)
                 else:
                     display_df['Weight %'] = display_df['Weight'].round(2)
-            
+
             if 'Value' not in display_df.columns and 'Weight' in display_df.columns:
                 if display_df['Weight'].max() <= 1.0:
                     display_df['Value'] = (display_df['Weight'] * total_value).round(2)
                 else:
                     display_df['Value'] = (display_df['Weight'] / 100 * total_value).round(2)
-            
+
             if 'Value' in display_df.columns:
                 display_df['Value $'] = display_df['Value'].apply(lambda x: f"${x:,.2f}")
-            
+
             display_cols = []
-            
+
             ticker_col = None
             for possible_name in ['Ticker', 'Symbol', 'Stock', 'ticker', 'symbol']:
                 if possible_name in display_df.columns:
                     ticker_col = possible_name
                     break
-            
+
             if ticker_col:
                 display_cols.append(ticker_col)
-            
+
             if 'Weight %' in display_df.columns:
                 display_cols.append('Weight %')
-            
+
             if 'Value $' in display_df.columns:
                 display_cols.append('Value $')
             elif 'Value' in display_df.columns:
                 display_cols.append('Value')
-            
+
             for col in display_df.columns:
                 if col not in display_cols and col not in ['Weight', 'Value']:
                     display_cols.append(col)
-            
+
             st.dataframe(
-                display_df[display_cols],
-                hide_index=False,
-                use_container_width=True,
-                height=500
+                display_df[display_cols], hide_index=False, width='stretch', height=500
             )
-            
+
             st.divider()
             col1, col2, col3 = st.columns(3)
-            
+
             col1.metric("Total Positions", len(results_df))
-            
+
             if 'Weight %' in display_df.columns:
                 col2.metric("Largest Position", f"{display_df['Weight %'].max():.2f}%")
-            
+
             if 'Value' in display_df.columns:
                 total_allocated = display_df['Value'].sum()
                 col3.metric("Total Allocated", f"${total_allocated:,.2f}")
-            
+
             st.divider()
             csv = results_df.to_csv(index=True)
             st.download_button(
@@ -336,17 +333,17 @@ if st.button("Retrieve Weights", type="primary", use_container_width=True):
                 data=csv,
                 file_name="ff3_portfolio_weights.csv",
                 mime="text/csv",
-                use_container_width=True
+                width='stretch'
             )
-            
+
         except Exception as e:
             st.error("Optimization failed!")
             st.error(f"**Error:** {str(e)}")
-            
+
             with st.expander("🐛 Full error traceback"):
                 import traceback
                 st.code(traceback.format_exc())
-            
+
             st.info("""
             **Troubleshooting:**
             - Make sure RunSim_utils.py is in the same folder
