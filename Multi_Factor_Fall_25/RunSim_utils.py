@@ -794,6 +794,75 @@ def current_date():
 # In[112]:
 
 
+def new_date_calculation1():
+    from datetime import datetime, timedelta
+    from datetime import date
+    today = datetime.now()
+    global out_of_sample_year_start
+    global out_of_sample_year_end
+    out_of_sample_year_start={}
+    out_of_sample_year_end={}
+    period_end = pd.to_datetime('2025-01-01')
+
+    for year in range(os_years):
+        out_of_sample_year_start[(year+1)] = period_end - timedelta(days=(365 * (os_years - year)))
+        two_months_before = (out_of_sample_year_start[(year+1)] - relativedelta(months = period_end.month- 1))
+        out_of_sample_year_start[(year+1)] = two_months_before.replace(day=1)
+        years=out_of_sample_year_start[(year+1)].year
+        if (years % 4 == 0 and years % 100 != 0) or (years % 400 == 0):
+            is_leap_year = True
+            no_days_in_year = 366
+        else:
+            is_leap_year = False
+            no_days_in_year = 365
+        out_of_sample_year_end[(year+1)]=out_of_sample_year_start[(year+1)]+ timedelta(days=no_days_in_year-1)
+        out_of_sample_year_start[(year+1)]=out_of_sample_year_start[(year+1)].strftime("%Y-%m-%d")
+        out_of_sample_year_end[(year+1)]=out_of_sample_year_end[(year+1)].strftime("%Y-%m-%d")                        
+    
+    global in_of_sample_year_start
+    in_of_sample_year_start={}
+    global in_of_sample_year_end
+    in_of_sample_year_end={}
+    for year in range(in_years):
+        in_of_sample_year_start[(year+1)] = period_end - timedelta(days=(365 * ((in_years+os_years) - year)))
+        two_months_before = in_of_sample_year_start[(year+1)] - relativedelta(months = period_end.month-1)
+        in_of_sample_year_start[(year+1)] = two_months_before.replace(day=1)
+        years=in_of_sample_year_start[(year+1)].year
+        if (years % 4 == 0 and years % 100 != 0) or (years % 400 == 0):
+            is_leap_year = True
+            no_days_in_year = 366
+        else:
+            is_leap_year = False
+            no_days_in_year = 365
+        in_of_sample_year_end[(year+1)]=in_of_sample_year_start[(year+1)]+ timedelta(days=no_days_in_year-1)
+        in_of_sample_year_start[(year+1)]=in_of_sample_year_start[(year+1)].strftime("%Y-%m-%d")
+        in_of_sample_year_end[(year+1)]=in_of_sample_year_end[(year+1)].strftime("%Y-%m-%d")
+    
+    inner_in_of_sample_year_start={}
+    for year in range(in_years+os_years):
+        inner_in_of_sample_year_start[(year+1)] = period_end - timedelta(days=(365 * (in_years+os_years - year)))
+        two_months_before = inner_in_of_sample_year_start[(year+1)] - relativedelta(months = period_end.month-1)
+        inner_in_of_sample_year_start[(year+1)] = two_months_before.replace(day=1)
+        years=inner_in_of_sample_year_start[(year+1)].year
+        if (years % 4 == 0 and years % 100 != 0) or (years % 400 == 0):
+            is_leap_year = True
+            no_days_in_year = 366
+        else:
+            is_leap_year = False
+            no_days_in_year = 365
+        inner_in_of_sample_year_start[(year+1)]=inner_in_of_sample_year_start[(year+1)].strftime("%Y-%m-%d")
+        
+
+    today = date.today()
+    formatted_date = today.strftime("%Y-%m-%d")
+    today = formatted_date
+    print(out_of_sample_year_start)
+    print(out_of_sample_year_end)
+    print(in_of_sample_year_start)
+    print(in_of_sample_year_end)
+
+    return inner_in_of_sample_year_start
+
 def new_date_calculation():
     from datetime import datetime, timedelta
     from datetime import date
@@ -856,8 +925,12 @@ def new_date_calculation():
     today = date.today()
     formatted_date = today.strftime("%Y-%m-%d")
     today = formatted_date
-    return inner_in_of_sample_year_start
+    print(out_of_sample_year_start)
+    print(out_of_sample_year_end)
+    print(in_of_sample_year_start)
+    print(in_of_sample_year_end)
 
+    return inner_in_of_sample_year_start
 
 # In[113]:
 
@@ -1870,6 +1943,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
     new_monthly_data= pd.read_csv('monthly_returns.csv')
     new_monthly_data.columns.name = 'Ticker'
     new_monthly_data = new_monthly_data.set_index('Date')
+    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors='coerce')   
     price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data,spy_yoy_tickers1)
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()

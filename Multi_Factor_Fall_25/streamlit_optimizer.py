@@ -320,7 +320,7 @@ if st.button("Retrieve Weights", type="primary", width='stretch'):
             col1.metric("Total Positions", len(results_df))
 
             if 'Weight %' in display_df.columns:
-                col2.metric("Largest Position", f"{display_df['Weight %'].max():.2f}%")
+                col2.metric("Largest Position", f"{display_df['Weight %'].max():.4f}%")
 
             if 'Value' in display_df.columns:
                 total_allocated = display_df['Value'].sum()
