@@ -120,6 +120,7 @@ def get_spy2(start, end, t1, rebal_freq):
             (pd.datetime(t1) - relativedelta(years=1)).year, 2026
         )  # Universe selection year (currently max 2025)
     # ensure sp500 membership
+    new_monthly_data.index = pd.to_datetime(new_monthly_data.index)
     universe_year = spy_yoy_tickers.loc[str(spy_year1) : str(spy_year2)]
     if len(universe_year) > 0:
         candidate_universe = set(universe_year.iloc[0].dropna())
@@ -128,7 +129,7 @@ def get_spy2(start, end, t1, rebal_freq):
 
     candidate_universe = list(candidate_universe.intersection(new_monthly_data.columns))
     # ensure tickers are not NA in regression period (typically 3 years)
-    regression_window = new_monthly_data.loc[pd.to_datetime(start):pd.to_datetime(end), candidate_universe]
+    regression_window = new_monthly_data.loc[start:end, candidate_universe]
     valid_tickers = regression_window.columns[
         ~regression_window.isna().any(axis=0)
     ].tolist()
