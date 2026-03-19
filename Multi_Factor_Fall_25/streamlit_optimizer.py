@@ -398,7 +398,7 @@ with col2:
         "Monte Carlo Runs",
         min_value=1,
         max_value=50,
-        value=10,
+        value=1,
         step=1,
         help="Number of Monte Carlo simulation runs"
     )
