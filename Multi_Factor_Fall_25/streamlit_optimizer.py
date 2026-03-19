@@ -346,9 +346,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                     1,
                     total_value,
                     "m",
-                    sim_constrained,
-                    indexgspc1,
-                    spy_yoy_tickers1,
+                    sim_constrained
                 )
 
                 avg_drm = final_visuala(oos1_list)
