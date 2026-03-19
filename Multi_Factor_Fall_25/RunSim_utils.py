@@ -1819,7 +1819,7 @@ def final_visuala(ddfs):
         height=500,
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    fig.plot()
 
     # =========================================================================
     # Performance Metrics
@@ -1859,16 +1859,7 @@ def final_visuala(ddfs):
             compute_metrics(averaged_df["SP_500"], "S&P 500"),
         ]
     ).set_index("Metric")
-    st.dataframe(
-        metrics.style.apply(
-            lambda col: [
-                "color: royalblue" if idx == "Optimized Portfolio" else "color: black"
-                for idx in metrics.index
-            ],
-            axis=0,
-        ),
-        use_container_width=True,
-    )
+    print(metrics)
 
     return averaged_df
 

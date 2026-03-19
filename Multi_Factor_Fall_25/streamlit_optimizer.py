@@ -174,6 +174,136 @@ st.divider()
 # =============================================================================
 # OPTIMIZATION FUNCTION
 # =============================================================================
+def final_visuala(ddfs):
+    import plotly.graph_objects as go
+
+    concatenated_df = pd.concat(ddfs, axis=1)
+    averaged_df_A = concatenated_df.filter(like="SP_500").mean(axis=1)
+    averaged_df_B = concatenated_df.filter(like="Optimized Portfolio").mean(axis=1)
+    averaged_df = pd.DataFrame(
+        {"SP_500": averaged_df_A, "Optimized Portfolio": averaged_df_B}
+    )
+
+    fig = go.Figure()
+
+    # Individual portfolio runs (faint blue lines)
+    for i, df in enumerate(ddfs):
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df["Optimized Portfolio"],
+                mode="lines",
+                line=dict(color="rgba(0, 100, 255, 0.15)", width=1),
+                showlegend=(i == 0),
+                name="Individual Runs",
+                hovertemplate="%{x|%b %Y}<br>Value: $%{y:.3f}<extra></extra>",
+            )
+        )
+
+    # SP500
+    fig.add_trace(
+        go.Scatter(
+            x=averaged_df.index,
+            y=averaged_df["SP_500"],
+            mode="lines+markers",
+            name="S&P 500",
+            line=dict(color="black", width=2, dash="dash"),
+            marker=dict(color="black", size=5, symbol="circle"),
+            hovertemplate="%{x|%b %Y}<br>S&P 500: $%{y:.3f}<extra></extra>",
+        )
+    )
+
+    # Optimized Portfolio (average)
+    fig.add_trace(
+        go.Scatter(
+            x=averaged_df.index,
+            y=averaged_df["Optimized Portfolio"],
+            mode="lines+markers",
+            name="Optimized Portfolio",
+            line=dict(color="royalblue", width=2.5),
+            marker=dict(color="royalblue", size=5, symbol="circle"),
+            hovertemplate="%{x|%b %Y}<br>Portfolio: $%{y:.3f}<extra></extra>",
+        )
+    )
+
+    # Month indicators
+    for date in averaged_df.index:
+        fig.add_vline(
+            x=date, line=dict(color="rgba(150, 150, 150, 0.2)", width=1, dash="dot")
+        )
+
+    fig.update_layout(
+        title=dict(
+            text="Optimized Portfolio vs S&P 500<br><sup>Growth of $1 invested</sup>",
+            font=dict(size=18),
+        ),
+        xaxis=dict(title="Date", tickformat="%b %Y", tickangle=-45, showgrid=False),
+        yaxis=dict(
+            title="Value ($)",
+            tickprefix="$",
+            showgrid=True,
+            gridcolor="rgba(200,200,200,0.3)",
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified",
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        height=500,
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # =========================================================================
+    # Performance Metrics
+    # =========================================================================
+    def compute_metrics(series, label):
+        start = str(series.index[0])
+        end   = str(series.index[-1])
+
+        rf = ff3_monthly[start:end]['RF']
+        rf = rf.mean()
+        # Convert cumulative values to period returns
+        returns = series.pct_change().dropna()
+        n = len(returns)
+        months = n
+
+        total_return = (series.iloc[-1] / series.iloc[0]) - 1
+        ann_return = (1 + total_return) ** (12 / months) - 1
+        volatility = returns.std() * np.sqrt(12)
+        downside_returns = returns[returns < 0]
+        downside_vol = downside_returns.std() * np.sqrt(12)
+        sharpe = (ann_return - rf) / volatility if volatility != 0 else np.nan
+        sortino = (ann_return - rf) / downside_vol if downside_vol != 0 else np.nan
+
+        return {
+            "Metric": label,
+            "Total Return": f"{total_return*100:.2f}%",
+            "Annualized Return": f"{ann_return*100:.2f}%",
+            "Volatility": f"{volatility*100:.2f}%",
+            "Downside Vol": f"{downside_vol*100:.2f}%",
+            "Sharpe Ratio": f"{sharpe:.3f}",
+            "Sortino Ratio": f"{sortino:.3f}",
+        }
+
+    metrics = pd.DataFrame(
+        [
+            compute_metrics(averaged_df["Optimized Portfolio"], "Optimized Portfolio"),
+            compute_metrics(averaged_df["SP_500"], "S&P 500"),
+        ]
+    ).set_index("Metric")
+    st.dataframe(
+        metrics.style.apply(
+            lambda col: [
+                "color: royalblue" if idx == "Optimized Portfolio" else "color: black"
+                for idx in metrics.index
+            ],
+            axis=0,
+        ),
+        use_container_width=True,
+    )
+
+    return averaged_df
+
 def optimize_portfolio(
     total_value, constrained_holdings, target_mkt, target_smb, target_hml
 ):
