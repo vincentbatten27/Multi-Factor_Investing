@@ -2168,7 +2168,7 @@ def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,
     
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
-    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings)
+    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings,end,'m')
     return opt_portf_weights
 
 
