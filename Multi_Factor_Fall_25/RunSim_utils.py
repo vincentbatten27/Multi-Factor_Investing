@@ -128,7 +128,7 @@ def get_spy2(start, end, t1, rebal_freq):
 
     candidate_universe = list(candidate_universe.intersection(new_monthly_data.columns))
     # ensure tickers are not NA in regression period (typically 3 years)
-    regression_window = new_monthly_data.loc[start:end, candidate_universe]
+    regression_window = new_monthly_data.loc[pd.datetime(start):pd.datetime(end), candidate_universe]
     valid_tickers = regression_window.columns[
         ~regression_window.isna().any(axis=0)
     ].tolist()
