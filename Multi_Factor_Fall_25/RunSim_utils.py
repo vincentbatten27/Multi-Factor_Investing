@@ -2146,25 +2146,18 @@ def monte_carlo_simulation_rlm(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years
 
 # In[134]:
 
-def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings):
+def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings,
+price_monthly_data1,new_monthly_data1,indexgspc1,spy_yoy_tickers1):
     global price_monthly_data 
     global new_monthly_data 
     global indexgspc 
     global spy_yoy_tickers 
     global oos1_list, oos1_list_yearly, oos1_average
-    global sb_bool
-    sb_bool = True
-    indexgspc1, spy_yoy_tickers1 = run_sp500_data()
-
-    price_monthly_data= pd.read_csv(SCRIPT_DIR / 'monthly_prices.csv')
-    price_monthly_data.columns.name = 'Ticker'
-    price_monthly_data = price_monthly_data.set_index('Date')
-
-    new_monthly_data= pd.read_csv(SCRIPT_DIR / 'monthly_returns.csv')
-    new_monthly_data.columns.name = 'Ticker'
-    new_monthly_data = new_monthly_data.set_index('Date')
-    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors='coerce')
-
+    price_monthly_data = price_monthly_data1
+    new_monthly_data = new_monthly_data1
+ 
+    indexgspc = indexgspc1.copy()
+    spy_yoy_tickers = spy_yoy_tickers1.copy()
     # price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data,spy_yoy_tickers1)
     
     indexgspc = indexgspc1.copy()
@@ -2173,21 +2166,17 @@ def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,
     return opt_portf_weights
 
 
-def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, starting_budget, rebal_freq,c_portf,indexgspc1,spy_yoy_tickers1): 
-    global price_monthly_data 
+def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, starting_budget, rebal_freq,c_portf,price_monthly_data1,
+                    new_monthly_data1,
+                    indexgspc1,
+                    spy_yoy_tickers1): 
+    global price_monthly_data
+    price_monthly_data = price_monthly_data1
     global new_monthly_data 
+    new_monthly_data = new_monthly_data1
     global indexgspc 
     global spy_yoy_tickers 
-    price_monthly_data= pd.read_csv('monthly_prices.csv')
-    price_monthly_data.columns.name = 'Ticker'
-    price_monthly_data = price_monthly_data.set_index('Date')
-
-    new_monthly_data= pd.read_csv('monthly_returns.csv')
-    new_monthly_data.columns.name = 'Ticker'
-    new_monthly_data = new_monthly_data.set_index('Date')
-    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors='coerce')
-    indexgspc1,spy_yoy_tickers1= run_sp500_data()
-
+ 
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     results = []

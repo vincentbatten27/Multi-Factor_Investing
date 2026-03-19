@@ -2,6 +2,27 @@ import streamlit as st
 import pandas as pd
 from RunSim_utils import *
 
+
+@st.cache_data
+def load_data():
+    price_monthly_data = pd.read_csv("monthly_prices.csv")
+    price_monthly_data.columns.name = "Ticker"
+    price_monthly_data["Date"] = pd.to_datetime(price_monthly_data["Date"])
+    price_monthly_data = price_monthly_data.set_index("Date")
+
+    new_monthly_data = pd.read_csv("monthly_returns.csv")
+    new_monthly_data.columns.name = "Ticker"
+    new_monthly_data["Date"] = pd.to_datetime(new_monthly_data["Date"])
+    new_monthly_data = new_monthly_data.set_index("Date")
+    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors="coerce")
+
+    indexgspc1, spy_yoy_tickers1 = run_sp500_data()
+
+    return price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1
+
+
+price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
+
 st.title("Multi-Factor Investing")
 st.caption(
     "Optimize portfolio weights to achieve target three fama-french exposures from S&P 500 equity universe."
@@ -174,6 +195,10 @@ def optimize_portfolio(
         total_value,
         50,
         constrained_holdings,
+        price_monthly_data,
+        new_monthly_data,
+        indexgspc1,
+        spy_yoy_tickers1,
     )
 
     results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})
@@ -223,14 +248,29 @@ target_hml = {target_hml}
 st.divider()
 
 # =============================================================================
+# SIMULATION OPTIONS - before the button
+# =============================================================================
+st.subheader("Simulation Options")
+use_constrained_sim = st.toggle(
+    "Include constrained holdings in Monte Carlo simulation",
+    value=True,
+    disabled=(len(st.session_state.holdings) == 0),
+    help="If off, simulation runs without locked positions",
+)
+
+st.divider()
+
+# =============================================================================
 # OPTIMIZE BUTTON
 # =============================================================================
 if st.button("Retrieve Weights", type="primary", width="stretch"):
     with st.spinner("Running optimization... This may take a moment."):
-        if st.session_state.holdings:
-            constrained_holdings = pd.DataFrame(st.session_state.holdings)
-        else:
-            constrained_holdings = None
+        constrained_holdings = (
+            pd.DataFrame(st.session_state.holdings)
+            if st.session_state.holdings
+            else None
+        )
+        sim_constrained = constrained_holdings if use_constrained_sim else None
 
         try:
             results_df, target_date = optimize_portfolio(
@@ -322,17 +362,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             st.divider()
             st.header("Historical Monte Carlo Simulation")
 
-            use_constrained = st.toggle(
-                "Include constrained holdings in simulation",
-                value=True,
-                disabled=(constrained_holdings is None),
-                help="If off, simulation runs without locked positions",
-            )
-
-            sim_constrained = constrained_holdings if use_constrained else None
-
             with st.spinner("Running Monte Carlo simulation..."):
-                today = pd.Timestamp.now()
                 curr_weights = target_date.date()
                 end_sim = curr_weights - relativedelta(days=1)
 
@@ -346,7 +376,11 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                     1,
                     total_value,
                     "m",
-                    sim_constrained
+                    sim_constrained,
+                    price_monthly_data,
+                    new_monthly_data,
+                    indexgspc1,
+                    spy_yoy_tickers1,
                 )
 
                 avg_drm = final_visuala(oos1_list)
