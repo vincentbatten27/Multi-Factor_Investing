@@ -1,25 +1,26 @@
 import streamlit as st
 import pandas as pd
 from RunSim_utils import *
-
+import os
 
 @st.cache_data
 def load_data():
-    price_monthly_data = pd.read_csv("monthly_prices.csv")
-    price_monthly_data.columns.name = "Ticker"
-    price_monthly_data["Date"] = pd.to_datetime(price_monthly_data["Date"])
-    price_monthly_data = price_monthly_data.set_index("Date")
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    
+    price_monthly_data = pd.read_csv(os.path.join(base_path, 'monthly_prices.csv'))
+    price_monthly_data.columns.name = 'Ticker'
+    price_monthly_data['Date'] = pd.to_datetime(price_monthly_data['Date'])
+    price_monthly_data = price_monthly_data.set_index('Date')
 
-    new_monthly_data = pd.read_csv("monthly_returns.csv")
-    new_monthly_data.columns.name = "Ticker"
-    new_monthly_data["Date"] = pd.to_datetime(new_monthly_data["Date"])
-    new_monthly_data = new_monthly_data.set_index("Date")
-    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors="coerce")
+    new_monthly_data = pd.read_csv(os.path.join(base_path, 'monthly_returns.csv'))
+    new_monthly_data.columns.name = 'Ticker'
+    new_monthly_data['Date'] = pd.to_datetime(new_monthly_data['Date'])
+    new_monthly_data = new_monthly_data.set_index('Date')
+    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors='coerce')
 
     indexgspc1, spy_yoy_tickers1 = run_sp500_data()
 
     return price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1
-
 
 price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
 
