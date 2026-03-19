@@ -259,7 +259,7 @@ def final_visuala(ddfs):
     def compute_metrics(series, label):
         start = str(series.index[0])
         end   = str(series.index[-1])
-
+        ff3_monthly = famafrenchreturns()
         rf = ff3_monthly[start:end]['RF']
         rf = rf.mean()
         # Convert cumulative values to period returns
@@ -382,13 +382,26 @@ st.divider()
 # SIMULATION OPTIONS - before the button
 # =============================================================================
 st.subheader("Simulation Options")
-use_constrained_sim = st.toggle(
-    "Include constrained holdings in Monte Carlo simulation",
-    value=True,
-    disabled=(len(st.session_state.holdings) == 0),
-    help="If off, simulation runs without locked positions",
-)
 
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    use_constrained_sim = st.toggle(
+        "Include constrained holdings in Monte Carlo simulation",
+        value=True,
+        disabled=(len(st.session_state.holdings) == 0),
+        help="If off, simulation runs without locked positions",
+    )
+
+with col2:
+    num_runs = st.number_input(
+        "Monte Carlo Runs",
+        min_value=1,
+        max_value=50,
+        value=10,
+        step=1,
+        help="Number of Monte Carlo simulation runs"
+    )
 st.divider()
 
 # =============================================================================
@@ -498,7 +511,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 end_sim = curr_weights - relativedelta(days=1)
 
                 oos1_list, oos1_avg, oos1_y = monte_carlo_simulation(
-                    1,
+                    num_runs,
                     target_mkt,
                     target_smb,
                     target_hml,
