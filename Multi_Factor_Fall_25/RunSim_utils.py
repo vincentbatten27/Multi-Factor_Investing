@@ -2186,6 +2186,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
     new_monthly_data.columns.name = 'Ticker'
     new_monthly_data = new_monthly_data.set_index('Date')
     new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors='coerce')
+    indexgspc1,spy_yoy_tickers1= run_sp500_data()
 
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
