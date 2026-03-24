@@ -153,14 +153,23 @@ if preset == "Custom":
             format="%.2f",
             help="High minus Low (positive = value tilt)",
         )
-elif preset == "Market Neutral (1, 0, 0)":
-    target_mkt, target_smb, target_hml = 1.0, 0.0, 0.0
-elif preset == "Small Value (1, 0.5, 0.5)":
-    target_mkt, target_smb, target_hml = 1.0, 0.5, 0.5
-elif preset == "Large Growth (1, -0.5, -0.5)":
-    target_mkt, target_smb, target_hml = 1.0, -0.5, -0.5
-else:
-    target_mkt, target_smb, target_hml = 1.2, -0.3, -0.3
+
+    elif preset == f"Max Return {betaa_maxr, betaz....}":
+    target_mkt, target_smb, target_hml =
+    elif preset == f"Min Volatility {beta_minv},{}":
+        target_mkt, target_smb, target_hml = 
+    elif preset == "Large Growth (1, -0.5, -0.5)":
+        target_mkt, target_smb, target_hml = 
+    else:
+        target_mkt, target_smb, target_hml = 
+# elif preset == "Market Neutral (1, 0, 0)":
+#     target_mkt, target_smb, target_hml = 1.0, 0.0, 0.0
+# elif preset == "Small Value (1, 0.5, 0.5)":
+#     target_mkt, target_smb, target_hml = 1.0, 0.5, 0.5
+# elif preset == "Large Growth (1, -0.5, -0.5)":
+#     target_mkt, target_smb, target_hml = 1.0, -0.5, -0.5
+# else:
+#     target_mkt, target_smb, target_hml = 1.2, -0.3, -0.3
 
 if preset != "Custom":
     col1, col2, col3 = st.columns(3)
