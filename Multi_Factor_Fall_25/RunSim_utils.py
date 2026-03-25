@@ -6,6 +6,7 @@
 # In[91]:
 # To ignore all warnings
 import warnings
+import getFamaFrenchFactors as gff
 warnings.filterwarnings("ignore")
 import matplotlib.pyplot as plt
 import numpy as np, numpy.random
@@ -38,6 +39,7 @@ from openpyxl import load_workbook
 import os
 from pathlib import Path
 from io import StringIO
+from alpha_vantage.timeseries import TimeSeries
 SCRIPT_DIR = Path(__file__).parent
 
 
@@ -62,7 +64,7 @@ def extract_stock_data(df, tdickers, start, end):
 
     # Select the tickers from the DataFrame
     df_selected = df_filtered[tdickers]
-    df_selected=df_selected.loc[:, df_selected.isna().sum() <= 0].dropna()
+    #df_selected=df_selected.loc[:, df_selected.isna().sum() <= 0].dropna()
     # df_selected.interpolate(method='linear',inplace=True)
     df_selected.index = pd.to_datetime(df_selected.index)
     df_selected = df_selected.tz_localize(None)
@@ -88,7 +90,6 @@ def extract_stock_data(df, tdickers, start, end):
     return df_selected
 
 
-
 # In[92]:
 
 
@@ -99,56 +100,55 @@ def extract_spy_data(df, start, end):
     return df_filtered
 
 
-
 # In[93]:
 
 
-def get_spy2(start, end):
+def get_spy2(start, end, t1, rebal_freq):
     ### Get tickers + setup
     global tickers, spy
-    
+
     new_monthly_data1 = new_monthly_data.copy()
     new_monthly_data1.index = pd.to_datetime(new_monthly_data1.index)
-    
-    spy_year1 = pd.to_datetime(start).year
-    spy_year2 = min(spy_year1 + 3, 2026)  # Universe selection year (currently max 2025)
-    
-    # =========================================================================
-    # STEP 1: Define UNIVERSE - what stocks CAN be chosen
-    # Based on S&P 500 membership in spy_year2
-    # =========================================================================
-    universe_year = spy_yoy_tickers.loc[str(spy_year2):str(spy_year2)]
+    if rebal_freq == "m" or rebal_freq == "drm":
+        spy_year2 = pd.to_datetime(t1).year
+        spy_year1 = min(
+            (pd.to_datetime(t1) - relativedelta(months=1)).year, 2026
+        )  # Universe selection year (currently max 2025)
+    elif rebal_freq == "y" or rebal_freq == "dry":
+        spy_year2 = pd.to_datetime(t1).year
+        spy_year1 = min(
+            (pd.datetime(t1) - relativedelta(years=1)).year, 2026
+        )  # Universe selection year (currently max 2025)
+    # ensure sp500 membership
+    new_monthly_data.index = pd.to_datetime(new_monthly_data.index)
+    universe_year = spy_yoy_tickers.loc[str(spy_year1) : str(spy_year2)]
     if len(universe_year) > 0:
         candidate_universe = set(universe_year.iloc[0].dropna())
     else:
         candidate_universe = set()
-    
-    # Keep only tickers that exist in new_monthly_data
+
     candidate_universe = list(candidate_universe.intersection(new_monthly_data.columns))
-    
-    # =========================================================================
-    # STEP 2: Check DATA AVAILABILITY - which stocks have enough historical data
-    # Based on new_monthly_data during regression window (start to end, ~3 years)
-    # =========================================================================
-    regression_window = new_monthly_data.loc[str(spy_year1):str(pd.to_datetime(end).year), candidate_universe]
-    valid_tickers = regression_window.columns[~regression_window.isna().any(axis=0)].tolist()
-    
+    # ensure tickers are not NA in regression period (typically 3 years)
+    regression_window = new_monthly_data.loc[start:end, candidate_universe]
+    valid_tickers = regression_window.columns[
+        ~regression_window.isna().any(axis=0)
+    ].tolist()
+
     tickers = valid_tickers
-    
     ### Import the monthly data
     global monthly_data
     global base_w
     monthly_data = extract_stock_data(new_monthly_data, tickers, start=start, end=end)
-    
+
     # Assign equal weight as base weights
-    base_w = {k: 1/len(monthly_data.columns) for k in monthly_data.columns}
-    base_w = pd.DataFrame.from_dict(base_w, orient='index', columns=['Weight'])
-    
+    base_w = {k: 1 / len(monthly_data.columns) for k in monthly_data.columns}
+    base_w = pd.DataFrame.from_dict(base_w, orient="index", columns=["Weight"])
+
     spy = extract_spy_data(indexgspc, start, end)
     if monthly_data.index.equals(spy.index) == True:
         for i, j in monthly_data.iterrows():
-            monthly_data.loc[i, 'SP_500'] = spy.loc[i, 'SP_500']
-    
+            monthly_data.loc[i, "SP_500"] = spy.loc[i, "SP_500"]
+
     # Adjusting tickers list
     tickers = list(monthly_data.columns[:-1])
 
@@ -166,25 +166,89 @@ def download_with_retry(tickers, start, end, retries=3, delay=5):
     raise Exception(f"Failed to download data after {retries} attempts.")
 
 
-
-
 # In[95]:
 
 
 def famafrenchreturns():
     global ff3_monthly
-    ff3_monthly = pd.read_csv(SCRIPT_DIR /'ff3_wrds.csv')
-    ff3_monthly.set_index(ff3_monthly['dateff'], inplace=True)
-    ff3_monthly.index.name = 'Date'
-    ff3_monthly = ff3_monthly.drop(columns={'dateff'})
-    ff3_monthly.columns = 'Mkt-RF','SMB','HML','RF'
-    ff3_monthly.index = pd.to_datetime(ff3_monthly.index)
+    # Fama French Monthly Returns Data using getFamaFrenchFactors module
+    ff3_monthly = gff.famaFrench3Factor(frequency='m')
+    ff3_monthly.rename(columns={"date_ff_factors": 'Date'}, inplace=True)
+    ff3_monthly.set_index('Date', inplace=True)
     ff3_monthly.index = ff3_monthly.index.to_period('M').to_timestamp('D')
     # Keeping Only the Dates in the monthly_data
-    ff3_monthly = ff3_monthly.loc[monthly_data.index]
+    ff3_monthly = ff3_monthly.reindex(new_monthly_data.index).dropna()
+    # Keeping Only the Dates in the monthly_data
+    est_df = estimate_ff3_from_holdings(new_monthly_data, ff3_monthly.index[-1], ff3_monthly)
+    ff3_monthly = pd.concat([ff3_monthly,est_df])
+    return ff3_monthly
+
+def estimate_ff3_from_holdings(new_monthly_data, last_known_date, ff3_source):
+    # Filter for dates after the last known date
+    returns_subset = new_monthly_data[new_monthly_data.index > last_known_date].copy()
     
+    if returns_subset.empty:
+        return None
+    
+    results = []
+    
+    # Get the last available RF rate as a fallback
+    last_rf = ff3_source['RF'].iloc[-1]
+    
+    for date, row in returns_subset.iterrows():
+        r = row.dropna()
+        if r.empty:
+            continue
+            
+        # --- [NEW] Get the RF Rate ---
+        # Try to find the exact date in your ff3_monthly data
+        if date in ff3_source.index:
+            rf = ff3_source.loc[date, 'RF']
+        else:
+            rf = last_rf # Use latest known rate if predicting for future dates
+        
+        n = len(r)
+        tickers = r.index.tolist()
+        hist = new_monthly_data[tickers].loc[:date].iloc[:-1]
+        
+        if hist.empty:
+            continue
 
+        cum_ret = hist.add(1).prod() - 1
+        size_rank = cum_ret.rank(ascending=True) 
 
+        if len(hist) >= 12:
+            prior_12m = hist.iloc[-12:].add(1).prod() - 1
+        else:
+            prior_12m = cum_ret 
+            
+        value_rank = prior_12m.rank(ascending=True) 
+        
+        small = r[size_rank <= n/3].mean()
+        big   = r[size_rank >= 2*n/3].mean()
+        smb   = small - big
+        
+        high  = r[value_rank <= n/3].mean()
+        low   = r[value_rank >= 2*n/3].mean()
+        hml   = high - low
+
+        # --- [ADJUSTED] Mkt-RF Calculation ---
+        # Excess market return = Average stock return - Risk Free Rate
+        mkt_rf = r.mean() - rf 
+        
+        results.append({
+            'Date':   date,
+            'Mkt-RF': mkt_rf,
+            'SMB':    smb,
+            'HML':    hml,
+            'RF':     rf   # Adding the RF to the output for completeness
+        })
+    
+    if not results:
+        return None
+        
+    est = pd.DataFrame(results).set_index('Date')
+    return est
 # In[96]:
 
 
@@ -247,33 +311,33 @@ def Transaction_Costs(initialize=False):
 # not working on back tests now?
 def extract_weights(c_portf):   
     c_portf.index = c_portf['Ticker']
-    if B == starting_budget:  
+    if B % 100000 == 0:
         c_portf['Weight'] = c_portf['Value']/B    
         return c_portf[['Weight']].astype(float)
     asof = pd.to_datetime(end).to_period('M').to_timestamp()
     tickers1 = c_portf.index.tolist()
     c_portf_ret = new_monthly_data[tickers1].loc[asof].astype(float) + 1
-    
+
     # Ensure alignment by setting the index explicitly
 
     c_portf_ret.index = c_portf.index
-    
+
     # Update values with returns
     c_portf['Value'] = c_portf['Value'].astype(float) * c_portf_ret
-    
+
     # Calculate weights
     raw_weights = c_portf['Value'] / B
     total_w = raw_weights.sum()
-    
+
     if total_w > 1.0:
         c_portf['Weight'] = raw_weights / total_w
     else:
         c_portf['Weight'] = raw_weights
     constrained_weights = c_portf[['Weight']].astype(float)
-    
+
     if constrained_weights['Weight'].sum() > 1 + 1e-9:  # Added tolerance
         raise ValueError(f"Invalid weight(s) > 1: sum = {constrained_weights['Weight'].sum()}")
-    
+
     return constrained_weights
 
 
@@ -355,7 +419,6 @@ def optimization(c_portf):#new
     index += lpSum(binary[i] for i in I) <= q
     # Solve (explicit CBC, quiet)
     index.solve(PULP_CBC_CMD(msg=False))
-    
 
 
 # In[101]:
@@ -407,8 +470,6 @@ def others():
     opt_portf_weights = weights.drop(columns=columns_to_remove)[weights[column_to_filter] != 0]
 
 
-
-
 # In[102]:
 
 
@@ -440,7 +501,6 @@ def portfolio_betas():
     port_betas["Abs. Diff"] = round(abs(port_betas['Optimization'] - port_betas["Target"]),4)
     port_betas
     return port_betas
-    
 
 
 # In[103]:
@@ -459,43 +519,39 @@ def timed(name, fn, *args, **kwargs):
 # In[104]:
 
 
-def simulator(beta1,beta2,beta3,begin,final,budget,number,c_portf):    
+def simulator(
+    beta1, beta2, beta3, begin, final, budget, number, c_portf, t1, rebal_freq
+):
     global start
     global end
-    start=begin
-    end=final
+    start = begin
+    end = final
     global mkt_bet, smb_bet, hml_bet
-    mkt_bet, smb_bet, hml_bet = [],[],[]
-    get_spy2(start,end)
-    #Adjusting tickers list as some tickers will not be included in the monthly_data if there is no data for test date range
+    mkt_bet, smb_bet, hml_bet = [], [], []
+    get_spy2(start, end, t1, rebal_freq)
+    # Adjusting tickers list as some tickers will not be included in the monthly_data if there is no data for test date range
     global tickers
-    global starting_budget
-    global sb_bool
-    if sb_bool == True:
-        starting_budget = budget
-        sb_bool = False
-
     tickers = list(monthly_data.columns[:-1])
-    tick_index = tickers + ['SP_500']
-    
+    tick_index = tickers + ["SP_500"]
 
-    # TARGET FACTOR BETAS 
+    # TARGET FACTOR BETAS
     global base_weights
     global mkt_opt
     global smb_opt
     global hml_opt
     global B
     global q
-    
-    mkt_opt = beta1                          # TARGET MKT BETA - EXPOSURE OF THE NEW PORTFOLIO TO MARKET FACTOR 
-    smb_opt = beta2                           # TARGET SMB BETA - EXPOSURE OF THE NEW PORTFOLIO TO SIZE FACTOR 
-    hml_opt = beta3                           # TARGET HML BETA - EXPOSURE OF THE NEW PORTFOLIO TO VALUE FACTOR 
-    B = budget                             # BUDGET
-    q = number                                # NUMBER OF STOCKS IN THE NEW PORTFOLIO
-    base_weights = base_w.T*0               # ONLY HAVE THIS LINE OF CODE WHEN YOU ARE CONSTRUCTING THE PORTFOLIO FROM SCRATCH 
-    
+    mkt_opt = beta1  # TARGET MKT BETA - EXPOSURE OF THE NEW PORTFOLIO TO MARKET FACTOR
+    smb_opt = beta2  # TARGET SMB BETA - EXPOSURE OF THE NEW PORTFOLIO TO SIZE FACTOR
+    hml_opt = beta3  # TARGET HML BETA - EXPOSURE OF THE NEW PORTFOLIO TO VALUE FACTOR
+    B = budget  # BUDGET
+    q = number  # NUMBER OF STOCKS IN THE NEW PORTFOLIO
+    base_weights = (
+        base_w.T * 0
+    )  # ONLY HAVE THIS LINE OF CODE WHEN YOU ARE CONSTRUCTING THE PORTFOLIO FROM SCRATCH
+
     famafrenchreturns()
-    to_cal_stock_price(start,end)
+    to_cal_stock_price(start, end)
     Transaction_Costs()
     optimization(c_portf)
     others()
@@ -505,36 +561,53 @@ def simulator(beta1,beta2,beta3,begin,final,budget,number,c_portf):
     smb_bet.append(port_betas.iloc[1][2])
     hml_bet.append(port_betas.iloc[2][2])
 
+
 # In[105]:
 
 
-def out_of_sampless(cccc,dddd):
+def out_of_sampless(cccc, dddd):
     global oos1_daily_data
     global oos1_spy_d
     global oos1_new_performance
     global o1_end_d
     global o1_start_d
     o1_start_d = cccc
-    o1_end_d   = dddd
-    oos1_daily_data = extract_stock_data(new_monthly_data,opt_portf_weights.index.tolist(),start=o1_start_d,end=o1_end_d)
-    # oos1_daily_data = oos1_daily_data['Adj Close'].pct_change().dropna()
+    o1_end_d = dddd
+    oos1_daily_data = extract_stock_data(
+        new_monthly_data,
+        opt_portf_weights.index.tolist(),
+        start=o1_start_d,
+        end=o1_end_d,
+    )
     oos1_daily_data = oos1_daily_data.tz_localize(None)
-    oos1_spy_d=extract_spy_data(indexgspc,cccc,dddd)
-    # oos1_spy_d = pd.DataFrame(yf.download('^GSPC',start=o1_start_d,end=o1_end_d,interval='1mo')['Adj Close'].pct_change())
-    # oos1_spy_d = oos1_spy_d.drop(oos1_spy_d.index[0]).tz_localize(None)
-    oos1_daily_data['SP_500'] = oos1_spy_d['SP_500']
-    oos1_daily_data['Optimized Portfolio'] = ''
+    oos1_spy_d = extract_spy_data(indexgspc, cccc, dddd)
+    oos1_daily_data["SP_500"] = oos1_spy_d["SP_500"]
+    oos1_daily_data["Optimized Portfolio"] = ""
     for i in range(len(oos1_daily_data.index)):
-        oos1_daily_data.iloc[i,-1] = oos1_daily_data.iloc[i,:-2].dot(opt_portf_weights['New Weights'])
-    oos1_daily_data=oos1_daily_data.dropna()
-    init = 1        #Initial Common Value (Can be thought of Initial Investment of $1 USD in each stock)
-    oos1_new_returns = pd.DataFrame(np.ones((len(oos1_daily_data),len(oos1_daily_data.columns))), index = oos1_daily_data.index, columns = oos1_daily_data.columns)
-    for j in range(1,len(oos1_daily_data.index)):
-        oos1_new_returns.iloc[j] = oos1_new_returns.iloc[j-1]*(oos1_daily_data.iloc[j-1][oos1_daily_data.columns])
-    oos1_new_performance = pd.DataFrame(np.ones((len(oos1_daily_data),2)), index = oos1_daily_data.index, columns = oos1_daily_data.columns[-2:])
-    for j in range(1,len(oos1_daily_data.index)):
-        oos1_new_performance.iloc[j] = oos1_new_performance.iloc[j-1]*(oos1_daily_data.iloc[j-1][oos1_daily_data.columns[-2:]]+1)
-    
+        oos1_daily_data.iloc[i, -1] = oos1_daily_data.iloc[i, :-2].dot(
+            opt_portf_weights["New Weights"]
+        )
+    oos1_daily_data = oos1_daily_data.dropna()
+    init = 1  # Initial Common Value (Can be thought of Initial Investment of $1 USD in each stock)
+    oos1_new_returns = pd.DataFrame(
+        np.ones((len(oos1_daily_data), len(oos1_daily_data.columns))),
+        index=oos1_daily_data.index,
+        columns=oos1_daily_data.columns,
+    )
+    for j in range(1, len(oos1_daily_data.index)):
+        oos1_new_returns.iloc[j] = oos1_new_returns.iloc[j - 1] * (
+            oos1_daily_data.iloc[j - 1][oos1_daily_data.columns]
+        )
+    oos1_new_performance = pd.DataFrame(
+        np.ones((len(oos1_daily_data), 2)),
+        index=oos1_daily_data.index,
+        columns=oos1_daily_data.columns[-2:],
+    )
+    for j in range(1, len(oos1_daily_data.index)):
+        oos1_new_performance.iloc[j] = oos1_new_performance.iloc[j - 1] * (
+            oos1_daily_data.iloc[j - 1][oos1_daily_data.columns[-2:]] + 1
+        )
+
     return oos1_new_performance
 
 
@@ -727,6 +800,75 @@ def current_date():
 # In[112]:
 
 
+def new_date_calculation1():
+    from datetime import datetime, timedelta
+    from datetime import date
+    today = datetime.now()
+    global out_of_sample_year_start
+    global out_of_sample_year_end
+    out_of_sample_year_start={}
+    out_of_sample_year_end={}
+    period_end = pd.to_datetime('2025-01-01')
+
+    for year in range(os_years):
+        out_of_sample_year_start[(year+1)] = period_end - timedelta(days=(365 * (os_years - year)))
+        two_months_before = (out_of_sample_year_start[(year+1)] - relativedelta(months = period_end.month- 1))
+        out_of_sample_year_start[(year+1)] = two_months_before.replace(day=1)
+        years=out_of_sample_year_start[(year+1)].year
+        if (years % 4 == 0 and years % 100 != 0) or (years % 400 == 0):
+            is_leap_year = True
+            no_days_in_year = 366
+        else:
+            is_leap_year = False
+            no_days_in_year = 365
+        out_of_sample_year_end[(year+1)]=out_of_sample_year_start[(year+1)]+ timedelta(days=no_days_in_year-1)
+        out_of_sample_year_start[(year+1)]=out_of_sample_year_start[(year+1)].strftime("%Y-%m-%d")
+        out_of_sample_year_end[(year+1)]=out_of_sample_year_end[(year+1)].strftime("%Y-%m-%d")                        
+    
+    global in_of_sample_year_start
+    in_of_sample_year_start={}
+    global in_of_sample_year_end
+    in_of_sample_year_end={}
+    for year in range(in_years):
+        in_of_sample_year_start[(year+1)] = period_end - timedelta(days=(365 * ((in_years+os_years) - year)))
+        two_months_before = in_of_sample_year_start[(year+1)] - relativedelta(months = period_end.month-1)
+        in_of_sample_year_start[(year+1)] = two_months_before.replace(day=1)
+        years=in_of_sample_year_start[(year+1)].year
+        if (years % 4 == 0 and years % 100 != 0) or (years % 400 == 0):
+            is_leap_year = True
+            no_days_in_year = 366
+        else:
+            is_leap_year = False
+            no_days_in_year = 365
+        in_of_sample_year_end[(year+1)]=in_of_sample_year_start[(year+1)]+ timedelta(days=no_days_in_year-1)
+        in_of_sample_year_start[(year+1)]=in_of_sample_year_start[(year+1)].strftime("%Y-%m-%d")
+        in_of_sample_year_end[(year+1)]=in_of_sample_year_end[(year+1)].strftime("%Y-%m-%d")
+    
+    inner_in_of_sample_year_start={}
+    for year in range(in_years+os_years):
+        inner_in_of_sample_year_start[(year+1)] = period_end - timedelta(days=(365 * (in_years+os_years - year)))
+        two_months_before = inner_in_of_sample_year_start[(year+1)] - relativedelta(months = period_end.month-1)
+        inner_in_of_sample_year_start[(year+1)] = two_months_before.replace(day=1)
+        years=inner_in_of_sample_year_start[(year+1)].year
+        if (years % 4 == 0 and years % 100 != 0) or (years % 400 == 0):
+            is_leap_year = True
+            no_days_in_year = 366
+        else:
+            is_leap_year = False
+            no_days_in_year = 365
+        inner_in_of_sample_year_start[(year+1)]=inner_in_of_sample_year_start[(year+1)].strftime("%Y-%m-%d")
+        
+
+    today = date.today()
+    formatted_date = today.strftime("%Y-%m-%d")
+    today = formatted_date
+    print(out_of_sample_year_start)
+    print(out_of_sample_year_end)
+    print(in_of_sample_year_start)
+    print(in_of_sample_year_end)
+
+    return inner_in_of_sample_year_start
+
 def new_date_calculation():
     from datetime import datetime, timedelta
     from datetime import date
@@ -789,8 +931,12 @@ def new_date_calculation():
     today = date.today()
     formatted_date = today.strftime("%Y-%m-%d")
     today = formatted_date
-    return inner_in_of_sample_year_start
+    print(out_of_sample_year_start)
+    print(out_of_sample_year_end)
+    print(in_of_sample_year_start)
+    print(in_of_sample_year_end)
 
+    return inner_in_of_sample_year_start
 
 # In[113]:
 
@@ -879,10 +1025,6 @@ def new_run_with_backtest_rebalance_rlm(inyears,outyears,betaA,betaB,betaC, reba
     new_spy_performances[os_years-adj] = noos1_new_performance.iloc[-1].loc["SP_500"]
     new_performances[os_years-adj] = noos1_new_performance.iloc[-1].loc["Optimized Portfolio"]
     return noos1_new_performance 
-    
-            
-            
-        
 
 
 # In[294]:
@@ -985,10 +1127,7 @@ def new_run_with_backtest_rebalance(inyears,outyears,betaA,betaB,betaC, rebal_fr
     new_spy_performances[os_years] = noos1_new_performance.iloc[-1].loc["SP_500"]
     new_performances[os_years] = noos1_new_performance.iloc[-1].loc["Optimized Portfolio"]
     return noos1_new_performance 
-    
-            
-            
-    
+
 
 def new_run_with_backtest_rebalance_cv(inyears,outyears,betaA,betaB,betaC, rebal_freq):
     global start_date
@@ -1083,9 +1222,6 @@ def new_run_with_backtest_rebalance_cv(inyears,outyears,betaA,betaB,betaC, rebal
     end_date = noos1_new_performance.index[-1]
         
     return noos1_new_performance 
-    
-        
-        
 
 
 # In[116]:
@@ -1159,9 +1295,6 @@ def new_run_with_backtest_mrebalance_rlm(inyears,outyears,betaA,betaB,betaC, reb
     noos1_new_performance = extract_performance_monthly(noos1_new_performance)
         
     return noos1_new_performance 
-    
-        
-        
 
 
 # In[237]:
@@ -1256,10 +1389,165 @@ def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC, rebal_f
     end_date = noos1_new_performance.index[-1]
         
     return noos1_new_performance 
-    
-        
-        
 
+
+# BEFORE YOU RUN OTHER JAWNS FIX THE $$ STARTING BUDGET LOGIC IN OTHERS $$
+def new_run_with_backtest_mrebalance_front_end(
+    target_date,inyears, outyears, betaA, betaB, betaC, starting_budget, rebal_freq, c_portf
+):
+    global start_date
+    global start_date1
+    global end_date
+    global os_years
+    global in_years
+    global os_months
+    global mkt_bet, smb_bet, hml_bet
+
+    mkt_bet, smb_bet, hml_bet = [], [], []
+    os_years = outyears
+    os_months = os_years * 12
+    in_years = inyears
+    global performances
+    performances = {}
+    global spy_performances
+    spy_performances = {}
+    global new_performances
+    new_performances = {}
+    global new_spy_performances
+    new_spy_performances = {}
+    global n_year_before
+    global n_year_after
+    n_year_after = target_date - relativedelta(years=outyears)
+    anchor_date = (target_date + pd.Timedelta(days=1)) - pd.DateOffset(years=outyears)
+
+    n_year_before = {
+        1: (anchor_date - pd.DateOffset(years=3)).strftime("%Y-%m-%d"),
+        2: (anchor_date - pd.DateOffset(years=2)).strftime("%Y-%m-%d"),
+        3: (anchor_date - pd.DateOffset(years=1)).strftime("%Y-%m-%d"),
+    }
+    n_year_before = n_year_before[1]
+    global rebalance_opt_weights
+    global port_betas_list
+    port_betas_list = []
+    rebalance_opt_weights = []
+    prev_month_perf = 1
+    noos1_new_performance = pd.DataFrame()
+    global expected_betas
+    expected_betas = []
+    budget = starting_budget
+    for k in range(os_months - 1):
+        # so base is above, and then first step is to grab the performance of January 2020 (assuming standard run)
+        # to add to noos1_perf and to update budget'
+        if rebal_freq == "m":
+
+            n_year_before_updated = str(
+                pd.to_datetime(n_year_before) + relativedelta(months=k)
+            )
+            n_year_after_updated = str(
+                pd.to_datetime(n_year_after) + relativedelta(months=k)
+            )
+            start_date11 = str(
+                pd.to_datetime(n_year_before_updated) + relativedelta(months=36)
+            )
+            end_date1 = str(
+                pd.to_datetime(n_year_before_updated) + relativedelta(months=37)
+            )
+            expected_betas.append([betaA, betaB, betaC])
+            budget = budget* prev_month_perf
+            t1 = start_date11
+            simulator(
+                betaA,
+                betaB,
+                betaC,
+                n_year_before_updated,
+                n_year_after_updated,
+                budget,
+                50,
+                c_portf,
+                t1,
+                rebal_freq
+            )
+            rebalance_opt_weights.append(opt_portf_weights)
+            mperformance = out_of_sampless(start_date11, end_date1).copy()
+            snipped_perf = mperformance.iloc[1]
+            if k == 0:
+                first_perf = mperformance.iloc[0]
+                noos1_new_performance = pd.concat(
+                    [noos1_new_performance, first_perf.to_frame().T]
+                )
+            prev_month_perf = snipped_perf["Optimized Portfolio"]
+            noos1_new_performance = pd.concat(
+                [noos1_new_performance, snipped_perf.to_frame().T]
+            )
+
+        if rebal_freq == "drm":
+            n_year_before_updated = str(
+                pd.to_datetime(n_year_before) + relativedelta(months=k)
+            )
+            n_year_after_updated = str(
+                pd.to_datetime(n_year_after) + relativedelta(months=k)
+            )
+            start_date1 = str(
+                pd.to_datetime(n_year_before_updated) + relativedelta(months=36)
+            )
+            end_date1 = str(
+                pd.to_datetime(n_year_before_updated) + relativedelta(months=37)
+            )
+            curr_year = (
+                pd.to_datetime(n_year_after_updated) + relativedelta(months=1)
+            ).year
+            print(start_date1)
+            try:
+                # curr_df = pd.read_csv(f'Active_Strategy_CSVs/yrebal_explored_sortino_active_{curr_year}.csv')
+                curr_df = pd.read_csv(
+                    f"Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv"
+                )
+                # curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{curr_year}.csv')
+                # curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{pd.to_datetime(start_date1).date()}.csv')
+            except FileNotFoundError:
+                curr_df = pd.read_csv(
+                    f"yrebal_explored_sortino_resample_surrogate_2018-07-01.csv"
+                )
+                print("File DNE")
+            curr_df = curr_df.sort_values(by="reward")
+            betaA = curr_df.iloc[-1][0]
+            betaB = curr_df.iloc[-1][1]
+            betaC = curr_df.iloc[-1][2]
+
+            print(f"{betaA}, {betaB}, {betaC} ")
+            expected_betas.append([betaA, betaB, betaC])
+            budget = budget* prev_month_perf
+
+            simulator(
+                betaA,
+                betaB,
+                betaC,
+                n_year_before_updated,
+                n_year_after_updated,
+                budget,
+                50,
+                c_portf,
+                t1,
+                rebal_freq
+            )
+            rebalance_opt_weights.append(opt_portf_weights)
+
+            mperformance = out_of_sampless(start_date1, end_date1).copy()
+            snipped_perf = mperformance.iloc[1]
+            if k == 0:
+                first_perf = mperformance.iloc[0]
+                noos1_new_performance = pd.concat(
+                    [noos1_new_performance, first_perf.to_frame().T]
+                )
+            prev_month_perf = snipped_perf["Optimized Portfolio"] 
+            noos1_new_performance = pd.concat(
+                [noos1_new_performance, snipped_perf.to_frame().T]
+            )
+    noos1_new_performance = extract_performance_monthly(noos1_new_performance)
+    start_date = noos1_new_performance.index[0]
+    end_date = noos1_new_performance.index[-1]
+
+    return noos1_new_performance
 
 # In[118]:
 
@@ -1286,7 +1574,6 @@ def extract_performance(dflist):
             dflist[i+1]['SP_500']=dflist[i+1]['SP_500']*eoy_spy
     dflist[1]=dflist[1].iloc[1:]
     return dflist
-            
 
 
 # In[120]:
@@ -1372,7 +1659,6 @@ def list_sharpe_ratio(dflist):
     sharpe_list = pd.DataFrame(sharpe_list)
     sharpe_average=sharpe_list.mean()
     return sharpe_average,sharpe_list,sp500_sharpe_ratio
-        
 
 
 # In[122]:
@@ -1429,7 +1715,6 @@ def final_visual():
     return averaged_df
 
 
-
 # In[124]:
 
 
@@ -1455,31 +1740,129 @@ def sp_final_visual():
     return averaged_df
 
 
-
 # In[125]:
 
 
 def final_visuala(ddfs):
-    fig, ax = plt.subplots(figsize=(12, 8))
-    for i, df in enumerate(ddfs):
-        ax.plot(df['Optimized Portfolio'],label='reinforcement performance',color='blue')
-    ax.plot(ddfs[-1]['SP_500'], label='SP_500', linestyle='--',  marker='o',color='brown')
-    last_df_index = ddfs[-1].index
-    concatenated_df = pd.concat(ddfs, axis=1)
-    averaged_df_A = concatenated_df.filter(like='SP_500').mean(axis=1)
-    averaged_df_B = concatenated_df.filter(like='Optimized Portfolio').mean(axis=1)
-    averaged_df = pd.DataFrame({
-        'SP_500': averaged_df_A,
-        'Optimized Portfolio': averaged_df_B
-    })
-    # ax.plot(averaged_df.index, averaged_df['Optimized Portfolio'], label='expectation', marker='o', color='black')
-    ax.set_xlabel('Months')
-    ax.set_ylabel('ROI')
-    ax.set_title('Optimized Portfolio Comparison with SP_500 and Average for every 1 dollar invested')
-    ax.legend()
-    plt.show()
-    return averaged_df
+    import plotly.graph_objects as go
 
+    concatenated_df = pd.concat(ddfs, axis=1)
+    averaged_df_A = concatenated_df.filter(like="SP_500").mean(axis=1)
+    averaged_df_B = concatenated_df.filter(like="Optimized Portfolio").mean(axis=1)
+    averaged_df = pd.DataFrame(
+        {"SP_500": averaged_df_A, "Optimized Portfolio": averaged_df_B}
+    )
+
+    fig = go.Figure()
+
+    # Individual portfolio runs (faint blue lines)
+    for i, df in enumerate(ddfs):
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df["Optimized Portfolio"],
+                mode="lines",
+                line=dict(color="rgba(0, 100, 255, 0.15)", width=1),
+                showlegend=(i == 0),
+                name="Individual Runs",
+                hovertemplate="%{x|%b %Y}<br>Value: $%{y:.3f}<extra></extra>",
+            )
+        )
+
+    # SP500
+    fig.add_trace(
+        go.Scatter(
+            x=averaged_df.index,
+            y=averaged_df["SP_500"],
+            mode="lines+markers",
+            name="S&P 500",
+            line=dict(color="black", width=2, dash="dash"),
+            marker=dict(color="black", size=5, symbol="circle"),
+            hovertemplate="%{x|%b %Y}<br>S&P 500: $%{y:.3f}<extra></extra>",
+        )
+    )
+
+    # Optimized Portfolio (average)
+    fig.add_trace(
+        go.Scatter(
+            x=averaged_df.index,
+            y=averaged_df["Optimized Portfolio"],
+            mode="lines+markers",
+            name="Optimized Portfolio",
+            line=dict(color="royalblue", width=2.5),
+            marker=dict(color="royalblue", size=5, symbol="circle"),
+            hovertemplate="%{x|%b %Y}<br>Portfolio: $%{y:.3f}<extra></extra>",
+        )
+    )
+
+    # Month indicators
+    for date in averaged_df.index:
+        fig.add_vline(
+            x=date, line=dict(color="rgba(150, 150, 150, 0.2)", width=1, dash="dot")
+        )
+
+    fig.update_layout(
+        title=dict(
+            text="Optimized Portfolio vs S&P 500<br><sup>Growth of $1 invested</sup>",
+            font=dict(size=18),
+        ),
+        xaxis=dict(title="Date", tickformat="%b %Y", tickangle=-45, showgrid=False),
+        yaxis=dict(
+            title="Value ($)",
+            tickprefix="$",
+            showgrid=True,
+            gridcolor="rgba(200,200,200,0.3)",
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified",
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        height=500,
+    )
+
+    fig.plot()
+
+    # =========================================================================
+    # Performance Metrics
+    # =========================================================================
+    def compute_metrics(series, label):
+        start = str(series.index[0])
+        end   = str(series.index[-1])
+
+        rf = ff3_monthly[start:end]['RF']
+        rf = rf.mean()
+        # Convert cumulative values to period returns
+        returns = series.pct_change().dropna()
+        n = len(returns)
+        months = n
+
+        total_return = (series.iloc[-1] / series.iloc[0]) - 1
+        ann_return = (1 + total_return) ** (12 / months) - 1
+        volatility = returns.std() * np.sqrt(12)
+        downside_returns = returns[returns < 0]
+        downside_vol = downside_returns.std() * np.sqrt(12)
+        sharpe = (ann_return - rf) / volatility if volatility != 0 else np.nan
+        sortino = (ann_return - rf) / downside_vol if downside_vol != 0 else np.nan
+
+        return {
+            "Metric": label,
+            "Total Return": f"{total_return*100:.2f}%",
+            "Annualized Return": f"{ann_return*100:.2f}%",
+            "Volatility": f"{volatility*100:.2f}%",
+            "Downside Vol": f"{downside_vol*100:.2f}%",
+            "Sharpe Ratio": f"{sharpe:.3f}",
+            "Sortino Ratio": f"{sortino:.3f}",
+        }
+
+    metrics = pd.DataFrame(
+        [
+            compute_metrics(averaged_df["Optimized Portfolio"], "Optimized Portfolio"),
+            compute_metrics(averaged_df["SP_500"], "S&P 500"),
+        ]
+    ).set_index("Metric")
+    print(metrics)
+
+    return averaged_df
 
 
 # In[126]:
@@ -1509,7 +1892,6 @@ def final_visualb(hhh,fff):
     return averaged_df
 
 
-
 # In[127]:
 
 
@@ -1534,7 +1916,6 @@ def final_visual1():
     plt.show()
 
 
-
 # In[128]:
 
 
@@ -1557,7 +1938,6 @@ def final_visual2():
     ax.set_title('Optimized Portfolio Comparison with SP_500 and Average for every 1 dollar invested')
     ax.legend()
     plt.show()
-
 
 
 # In[129]:
@@ -1758,51 +2138,37 @@ def monte_carlo_simulation_rlm(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years
 
 # In[134]:
 
-def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings):
+def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings,
+price_monthly_data1,new_monthly_data1,indexgspc1,spy_yoy_tickers1):
     global price_monthly_data 
     global new_monthly_data 
     global indexgspc 
     global spy_yoy_tickers 
     global oos1_list, oos1_list_yearly, oos1_average
-    global sb_bool
-    sb_bool = True
-    indexgspc1, spy_yoy_tickers1 = run_sp500_data()
-
-    price_monthly_data= pd.read_csv(SCRIPT_DIR / 'monthly_prices.csv')
-    price_monthly_data.columns.name = 'Ticker'
-    price_monthly_data = price_monthly_data.set_index('Date')
-
-    new_monthly_data= pd.read_csv(SCRIPT_DIR / 'monthly_returns.csv')
-    new_monthly_data.columns.name = 'Ticker'
-    new_monthly_data = new_monthly_data.set_index('Date')
-    
+    price_monthly_data = price_monthly_data1
+    new_monthly_data = new_monthly_data1
+ 
+    indexgspc = indexgspc1.copy()
+    spy_yoy_tickers = spy_yoy_tickers1.copy()
     # price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data,spy_yoy_tickers1)
     
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
-    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings)
+    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings,end,'m')
     return opt_portf_weights
-def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, rebal_freq, index, c_portf): 
-    global new_data 
-    global price_monthly_data 
+
+
+def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, starting_budget, rebal_freq,c_portf,price_monthly_data1,
+                    new_monthly_data1,
+                    indexgspc1,
+                    spy_yoy_tickers1): 
+    global price_monthly_data
+    price_monthly_data = price_monthly_data1
     global new_monthly_data 
+    new_monthly_data = new_monthly_data1
     global indexgspc 
     global spy_yoy_tickers 
-    global oos1_list, oos1_list_yearly, oos1_average
-
-    if index == 'SPY':
-        indexgspc1, spy_yoy_tickers1 = run_sp500_data()
-    elif index =='Nifty':
-        indexgspc1, spy_yoy_tickers1 = run_N50_data()
-    #new_data = new_data1.copy()
-    price_monthly_data= pd.read_csv('monthly_prices.csv')
-    price_monthly_data.columns.name = 'Ticker'
-    price_monthly_data = price_monthly_data.set_index('Date')
-
-    new_monthly_data= pd.read_csv('monthly_returns.csv')
-    new_monthly_data.columns.name = 'Ticker'
-    new_monthly_data = new_monthly_data.set_index('Date')
-    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data,spy_yoy_tickers1)
+ 
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
     results = []
@@ -1813,26 +2179,33 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
             if(rebal_freq == 'y' or rebal_freq ==  'dry'):
                 oos1_new_performance=new_run_with_backtest_rebalance(in_years1,out_years,mbetaA,mbetaB,mbetaC,rebal_freq)
             if(rebal_freq == 'm' or rebal_freq == 'drm'):
-                oos1_new_performance = new_run_with_backtest_mrebalance(in_years1,out_years,mbetaA,mbetaB,mbetaC,rebal_freq,c_portf)
+                oos1_new_performance = new_run_with_backtest_mrebalance(in_years1,out_years,mbetaA,mbetaB,mbetaC,starting_budget,rebal_freq,c_portf)
             if(rebal_freq == 'cv'):
                 oos1_new_performance = new_run_with_backtest_rebalance_cv(in_years1,out_years,mbetaA,mbetaB,mbetaC,'drm')
         else:
-            oos1_new_performance=new_run_with_backtest(in_years1,out_years,mbetaA,mbetaB,mbetaC)
+            oos1_new_performance = new_run_with_backtest_mrebalance_front_end(
+                type,
+                in_years1,
+                out_years,
+                mbetaA,
+                mbetaB,
+                mbetaC,
+                starting_budget,
+                rebal_freq,
+                c_portf,
+            )
         globals()[f'x{i}_df']=oos1_new_performance.copy()
         globals()[f'y{i}_df']=new_performances.copy()
         results.append(globals()[f'x{i}_df'])
         yearly_returns.append(globals()[f'y{i}_df'])
-    
+
     sums = {key: 0 for key in yearly_returns[0]}
     for d in yearly_returns:
         for key, value in d.items():
             sums[key] += value
     num_dicts = len(yearly_returns)
     averages = {key: sums[key] / num_dicts for key in sums}
-    oos1_list, oos1_list_yearly, oos1_average  = results,yearly_returns,averages
-
-    return oos1_list, oos1_list_yearly, oos1_average
-
+    return results,yearly_returns,averages
 # In[135]:
 
 
@@ -2021,7 +2394,6 @@ def visual():
       plt.show()
 
 
-
 # In[141]:
 
 
@@ -2044,7 +2416,6 @@ def famafrenchreturns_FS():
     ff3_monthly_FS = ff3_monthly_FS.groupby(level=0).last()  # or .mean(), etc.
     ff3_monthly_FS = ff3_monthly_FS.asfreq('MS')  
     ff3_monthly_FS = ff3_monthly_FS.interpolate(method='linear')
-
 
 
 # In[142]:
@@ -2426,7 +2797,6 @@ def plot_yearly_betas():
     plt.xticks(rotation=45)
     ax.legend(fontsize=12)
     plt.show()
-    
 
 
 # In[146]:
@@ -2500,13 +2870,13 @@ def rebalanced_optimal_weights_y():
 # In[148]:
 
 
-def rebalanced_optimal_weights_m():
+def rebalanced_optimal_weights_m(oos1_list):
     global rebalance_optimal_weights_appended 
     
     full_tickers = price_monthly_data.columns
 
     # All months from your OOS index
-    all_months = oos1_list[0].index.to_period("M").unique()
+    all_months = oos1_list.index#.to_period("M").unique()
 
     # Use one month per weights DataFrame
     n_rebals = len(rebalance_opt_weights)  # e.g., 59
@@ -2634,10 +3004,7 @@ def compute_rbpsa_betas(df_X, df_y):
 
 
 def run_sp500_data():
-    # new_data1 = pd.read_csv(SCRIPT_DIR / 'daat.csv')
-    # new_data1.drop(columns='PERMNO', inplace=True)
-    # new_data1.rename(columns={'date':'Date', 'TICKER':'Ticker'}, inplace=True)
-
+    
     index = pd.read_csv(SCRIPT_DIR / 'spy_data.csv')
     indexgspc1 = index.copy()
     indexgspc1.rename(columns={'DATE':'Date', 'sprtrn':'SP_500'}, inplace=True)
@@ -2645,7 +3012,8 @@ def run_sp500_data():
     indexgspc1.set_index('Date', inplace=True)
     indexgspc1.index = pd.to_datetime(indexgspc1.index)
     indexgspc1 = indexgspc1.dropna()
-
+    indexgspc1 = indexgspc1.drop(columns=['Unnamed: 0'])
+    indexgspc1 = update_spy(indexgspc1)
     spy_mom = pd.read_excel(SCRIPT_DIR / 'Total SPX.xlsx')
     spy_mom['Year'] = spy_mom['Source.Name'].str.extract(r'(\d{4})').astype(int)
     spy_mom.set_index('Year', inplace = True)
@@ -2659,6 +3027,30 @@ def run_sp500_data():
     spy_yoy_tickers1 = grouped
     
     return indexgspc1, spy_yoy_tickers1
+
+def update_spy(indexgspc1):
+    ts = TimeSeries(key='CPT85HPR5S2L405H', output_format='pandas')
+    data, meta_data = ts.get_monthly_adjusted(symbol='SPY')
+    
+    # Clean column names
+    data.columns = [col.split('. ')[1] for col in data.columns]
+    
+    # Sort ascending (AV returns descending)
+    data = data.sort_index(ascending=True)
+    
+    # Calculate return: pct change from previous month's adjusted close
+    data['SP_500'] = data['close'].pct_change()
+    
+    # Re-index to 1st of the month to match your convention
+    # (Dec 1st = return from Nov 1st close to Dec 1st close)
+    data.index = data.index.to_period('M').to_timestamp()  # 'MS' = month start
+    
+    # Filter to only new months not already in indexgspc1
+    latest_date = indexgspc1.index.max()
+    data = data[data.index > latest_date]
+    av_spy = data['SP_500'].dropna() 
+    indexgspc1 = pd.concat([indexgspc1,av_spy])
+    return indexgspc1
 
 
 # In[152]:
@@ -2676,6 +3068,8 @@ def run_N50_data():
     indexgspc1.set_index('Date',inplace=True)
     indexgspc1.index = pd.to_datetime(indexgspc1.index)
     indexgspc1=indexgspc1.dropna()
+    indexgspc1 = indexgspc1.drop(columns=['Unnamed: 0'])
+
     n_50 = pd.read_csv(SCRIPT_DIR /'Nifty_50.csv')
     n_50 = n_50.replace("BAJAJ-AUTO", np.nan)
 
@@ -2687,7 +3081,6 @@ def run_N50_data():
     n50_view = n50_view.astype(object).where(n50_view.notna(), None)
     spy_yoy_tickers1 = n50_view.copy()
     return new_data1, indexgspc1, spy_yoy_tickers1
-    
 
 
 # # Go here
@@ -2699,9 +3092,8 @@ def run_N50_data():
 # In[ ]:
 
 
-
 # # Reinforcement Learning
-# ### Skip this if not using 
+# ### Skip this if not using
 
 # In[ ]:
 
@@ -2744,14 +3136,15 @@ def get_consistently_worst_portfolio(dfs, portfolio_col='portfolio'):
     # Return the corresponding original DataFrame
     return dfs[worst_index]
 
-def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
+def update_stock_data(price_monthly_data, new_monthly_data,indexgspc1,spy_yoy_tickers1):
     global results
     if test() == None:
         return price_monthly_data, new_monthly_data
+    tickers_to_scrape = spy_yoy_tickers1.stack().unique().tolist()
+    total_tickers = len(tickers_to_scrape)
     current_date = pd.Timestamp.now()
     curr_month = (current_date).to_period('M').to_timestamp()
-    tickers_to_scrape = spy_yoy_tickers1.stack().unique().tolist()
-    latest_date = pd.to_datetime(price_monthly_data.index.max()) 
+    latest_date = price_monthly_data.index.max() 
     months_to_scrape = []
     current_check = latest_date + pd.DateOffset(months=1)
     current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
@@ -2759,14 +3152,19 @@ def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
         months_to_scrape.append(current_check)
         current_check = current_check + pd.DateOffset(months=1)
         current_check = current_check.to_period('M').to_timestamp(how='start').normalize()
+    months_to_scrape = sorted(months_to_scrape)
     t2s = []
     if not months_to_scrape:
-        log = pd.read_csv(SCRIPT_DIR / 'scrape_log.csv')
+        log = pd.read_csv('scrape_log.csv')
         log.index = log['Ticker']
         t2s = log.loc[log['Status'] == 'RATE_LIMITED', 'Ticker'].tolist()
         tickers_to_scrape = [t for t in t2s if t in tickers_to_scrape]
-    
-    if not months_to_scrape and len(tickers_to_scrape) == 0:
+    for month in price_monthly_data.index.unique():
+        non_nan_count = price_monthly_data.loc[month].notna().sum()
+    if non_nan_count < total_tickers * 0.65:  
+        if month not in months_to_scrape:
+            months_to_scrape.append(month)
+    if len(tickers_to_scrape) == 0:
         return price_monthly_data, new_monthly_data
     results = []
     print(f'Updating Month(s): {months_to_scrape}')
@@ -2782,45 +3180,39 @@ def update_stock_data(price_monthly_data, new_monthly_data, spy_yoy_tickers1):
 
     master_df.sort_index(inplace=True)
     master_df.index = master_df.index.to_period('M').to_timestamp()
-    if months_to_scrape:
-        if len(months_to_scrape) > 1: 
-            master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[-1]]
-        else: 
-            master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[0]]
-        price_monthly_data = pd.concat([price_monthly_data, master_df_adj])
-    else:
-        new_cols = [col for col in master_df.columns if col not in price_monthly_data.columns]
-        if new_cols:
-            price_monthly_data = price_monthly_data.join(master_df[new_cols], how='outer')
+    if len(months_to_scrape) > 1: 
+        master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[-1]]
+    else: 
+        master_df_adj = master_df.loc[months_to_scrape[0]:months_to_scrape[0]]
+    
+    # Split into existing months (need merge) vs new months (need concat)
+    existing_months = [m for m in months_to_scrape if m in price_monthly_data.index]
+    new_months = [m for m in months_to_scrape if m not in price_monthly_data.index]
+    
+    if existing_months:
+        price_monthly_data = master_df_adj.loc[existing_months].combine_first(price_monthly_data)
+    if new_months:
+        price_monthly_data = pd.concat([price_monthly_data, master_df_adj.loc[new_months]])    
+          
     price_monthly_data.to_csv('monthly_prices.csv')
-    if months_to_scrape:
-        return_df = master_df.loc[months_to_scrape[0]-relativedelta(months=1):months_to_scrape[-1]].pct_change().dropna()
-        new_monthly_data = pd.concat([new_monthly_data, return_df])
-    else:
-        return_df = master_df.pct_change().dropna()
-        new_cols = [col for col in return_df.columns if col not in new_monthly_data.columns]
-        if new_cols:
-            new_monthly_data = new_monthly_data.join(return_df[new_cols], how='outer')
+    return_df = master_df.pct_change()
 
+# Split into existing months (need merge) vs new months (need concat)
+    existing_months = [m for m in return_df.index if m in new_monthly_data.index]
+    new_months = [m for m in return_df.index if m not in new_monthly_data.index]
+
+    if existing_months:
+        new_monthly_data = return_df.loc[existing_months].combine_first(new_monthly_data)
+
+    if new_months:
+        new_monthly_data = pd.concat([new_monthly_data, return_df.loc[new_months]])
+    new_monthly_data = new_monthly_data.replace(0.0, np.nan)
+    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors='coerce')
     new_monthly_data.to_csv('monthly_returns.csv')
-    series_list = [data.rename(ticker) for ticker, data, status in results if status == "SUCCESS"]
-    results_df = pd.concat(series_list, axis=1)
-
-    try: 
-        existing_log = pd.read_csv(SCRIPT_DIR /'scrape_log.csv')
-        existing_log.set_index('Ticker', inplace=True)
-    except FileNotFoundError:
-        existing_log = pd.DataFrame(columns=['Ticker', 'Status'])
-        existing_log.set_index('Ticker', inplace=True)
-
     log_data = [(res[0], res[2]) for res in results]
     new_log_df = pd.DataFrame(log_data, columns=['Ticker', 'Status'])
-    new_log_df.set_index('Ticker', inplace=True)
-
-    for ticker in new_log_df.index:
-        existing_log.loc[ticker] = new_log_df.loc[ticker]
-
-    existing_log.reset_index().to_csv('scrape_log.csv', index=False)
+    new_log_df.to_csv('scrape_log.csv',index=False)
+    
     return price_monthly_data, new_monthly_data
 
 def test(): 
@@ -3105,9 +3497,8 @@ class AdaptiveBandit:
 
 
 # bandit = AdaptiveBandit(objective='sortino')  # or 'max_return', 'sortino', etc.
-# bandit.run_bandit(iterations=100,initializer='Yes')  # You can set iterations to whatever you want 
+# bandit.run_bandit(iterations=100,initializer='Yes')  # You can set iterations to whatever you want
 # is max space iterations
-
 
 
 # In[ ]:
@@ -3395,7 +3786,5 @@ class AdaptiveBandit:
 # for x in range(10):
 #     from IPython.display import clear_output
 #     bandit = AdaptiveBandit(x,objective='sortino')  # or 'max_return', 'sortino', etc.
-#     bandit.run_bandit(iterations=100,initializer = 'yes')  # You can set iterations to whatever you want 
+#     bandit.run_bandit(iterations=100,initializer = 'yes')  # You can set iterations to whatever you want
 #     # is max space iterations
-
-
