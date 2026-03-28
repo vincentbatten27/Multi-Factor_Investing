@@ -4,7 +4,7 @@
 This repository contains the full implementation and research framework for an adaptive multifactor investing strategy, orignally developed as part of a financial engineering capstone. The goal of this project is to leverage simulation-based learning algorithms to achieve five different optimazation goals: Returns, Volatility, Downside Volatility, Sharpe, and Sortino.
 
 
-## Overview
+# Overview
 This project systematically constructs equity portfolios based on the Fama-French 3-Factor Model: **Market (MKT), Size (SMB), and Value (HML)**. The Fama-French 3-Factor model is an extension of the standard mean-variance framework that captures systematic return sources beyond just market exposure.
 <br>
 • **MKT (Market − Risk Free):** Excess return over the risk-free rate (e.g., US Treasury Bills). This is your baseline market exposure.<br>
