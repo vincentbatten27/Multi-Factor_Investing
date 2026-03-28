@@ -36,7 +36,7 @@ Absolute values are non-linear, so we introduce auxiliary variables ($\epsilon_t
 
 $$
 \begin{aligned}
-\sum_{i \in I} (w_i \cdot X_{i,t}) - \epsilon_t &\le RHS_t \
+\sum_{i \in I} (w_i \cdot X_{i,t}) - \epsilon_t &\le RHS_t \<br>
 \sum_{i \in I} (w_i \cdot X_{i,t}) + \epsilon_t &\ge RHS_t
 \end{aligned}
 $$
@@ -45,13 +45,13 @@ The number of equities being slected is limited to $q$ by a binay decision varia
 
 $$
 \begin{aligned}
-\sum w_i &= 1.0 \
-w_i &\le z_i, \quad \forall i \in I \
+\sum w_i &= 1.0 \<br>
+w_i &\le z_i, \quad \forall i \in I \<br>
 \sum z_i &\le q, \quad z_i \in {0, 1}
 \end{aligned}
 $$
 
-Finally the total dollar cost of moving from the current portfolio ($w_{base}$) to the new optimal weights is constrained to $\le 0.2%$ of total portfolio value **B**:
+Finally the total dollar cost of moving from the current portfolio ($w_{base}$) to the new optimal weights is constrained to ≤$\le 0.2%$ of total portfolio value **B**:
 
 $$
 \sum_{i \in I} |w_i - w_{base,i}| \cdot \left( \frac{B \cdot t_{cost,i}}{P_i} \right) \le 0.002 \cdot B
@@ -89,22 +89,16 @@ The five return streams are then joined into a single dataframe and passed to th
 
 **Neighborhood Search**
 
-The hill-climbing step searches in increments of:
-
-$$
-\pm 0.1
-$$
-
-along each beta dimension, clipped to the following bounds:
+The hill-climbing step searches in increments of $$\pm 0.1$$ along each beta dimension, clipped to the following bounds:
 
 $$
 \beta_{Mkt} \in [0.7, 1.3], \quad \beta_{SMB} \in [-0.6, 0.6], \quad \beta_{HML} \in [-0.6, 0.6]
 $$
 
-After each hill-climb step, a random perturbation of up to:
+After each hill-climb step, a random uniform check of up to:
 
 $$
-\pm 0.3
+\pm U(0.3)
 $$
 
 is applied around the current best to encourage exploration beyond the immediate neighborhood.
