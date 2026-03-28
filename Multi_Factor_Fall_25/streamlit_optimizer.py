@@ -277,8 +277,12 @@ def final_visuala(ddfs, expected_betas=None):
             name="Optimized Portfolio",
             line=dict(color="royalblue", width=2.5),
             marker=dict(color="royalblue", size=5, symbol="circle"),
-            customdata=expected_betas if expected_betas else [[None,None,None]]*len(averaged_df),
-            hovertemplate="%{x|%b %Y}<br>Portfolio: $%{y:.3f}<extra></extra>",
+            customdata=(
+                expected_betas
+                if expected_betas
+                else [[None, None, None]] * len(averaged_df)
+            ),
+            hovertemplate="%{x|%b %Y}<br>Portfolio: $%{y:.3f}<br>β_mkt=%{customdata[0]}, β_smb=%{customdata[1]}, β_hml=%{customdata[2]}<extra></extra>",
         )
     )
 
@@ -307,7 +311,7 @@ def final_visuala(ddfs, expected_betas=None):
         height=500,
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width=True)
 
     # =========================================================================
     # Performance Metrics
@@ -355,7 +359,7 @@ def final_visuala(ddfs, expected_betas=None):
             ],
             axis=0,
         ),
-        use_container_width=True,
+        width=True,
     )
 
     return averaged_df
