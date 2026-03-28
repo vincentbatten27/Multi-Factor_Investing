@@ -311,7 +311,7 @@ def final_visuala(ddfs, expected_betas=None):
         height=500,
     )
 
-    st.plotly_chart(fig, width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # =========================================================================
     # Performance Metrics
@@ -359,7 +359,7 @@ def final_visuala(ddfs, expected_betas=None):
             ],
             axis=0,
         ),
-        width=True,
+        width="stretch",
     )
 
     return averaged_df
@@ -617,3 +617,29 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             - Try without constrained holdings first to isolate the issue
             """
             )
+
+# Custom Footer HTML
+footer = """
+<style>
+.footer {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    background-color: white;
+    color: black;
+    text-align: center;
+    padding: 10px;
+    font-size: 14px;
+    border-top: 1px solid #e6e6e6;
+}
+</style>
+<div class="footer">
+    <p>Developed by <b>Vincent Batten</b> | 
+    <a href="mailto:vincentbatten27@gmail.com">Contact Me</a> | 
+    Created alongside <b>Johanan Pranesh, Nate Songstad, Kshitij Bhandari</b><br>
+    Sponsored by: <b>Jordan Weintraub</b></p>
+</div>
+"""
+
+st.markdown(footer, unsafe_allow_html=True)
