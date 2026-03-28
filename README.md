@@ -18,49 +18,116 @@ There are multiple optional inputs when the optimization is backtested, includin
 
 ## How It Works
 
-- **Optimazation**: The inputted exposure is aligned in the form of:
-  $$RHS_t = \beta_{Mkt} (R_{m,t} - R_{f,t}) + \beta_{SMB} (SMB_t) + \beta_{HML} (HML_t)$$
- The solver then minimzes the L1-norm tracking error (absolute deviation), an improved version of standard least-square, with the goal of minimizing to be having the out-of-sample beta points as accurate as possible. The target return (RHS) is subtracted by the portfolio's excesss returns(X): 
-  $$\min_{w} \sum_{t \in T} | \sum_{i \in I} (w_i \cdot X_{i,t}) - RHS_t |$$
-Absolute values are non-linear, so we introduce auxiliary variables ($\epsilon_t$) to "trap" the error on both sides of the target, allowing for a solveable linear system.: 
-  \begin{aligned}
-\sum_{i \in I} (w_i \cdot X_{i,t}) - \epsilon_t &\le RHS_t \\
+Got it — same wording, just cleaned formatting, fixed LaTeX, spacing, and structure.
+
+---
+
+# How It Works
+
+* **Optimazation**: The inputted exposure is aligned in the form of:
+
+$$
+RHS_t = \beta_{Mkt} (R_{m,t} - R_{f,t}) + \beta_{SMB} (SMB_t) + \beta_{HML} (HML_t)
+$$
+
+The solver then minimzes the L1-norm tracking error (absolute deviation), an improved version of standard least-square, with the goal of minimizing to be having the out-of-sample beta points as accurate as possible. The target return (RHS) is subtracted by the portfolio's excesss returns ($X$):
+
+$$
+\min_{w} \sum_{t \in T} \left| \sum_{i \in I} (w_i \cdot X_{i,t}) - RHS_t \right|
+$$
+
+Absolute values are non-linear, so we introduce auxiliary variables ($\epsilon_t$) to "trap" the error on both sides of the target, allowing for a solveable linear system:
+
+$$
+\begin{aligned}
+\sum_{i \in I} (w_i \cdot X_{i,t}) - \epsilon_t &\le RHS_t \
 \sum_{i \in I} (w_i \cdot X_{i,t}) + \epsilon_t &\ge RHS_t
 \end{aligned}
-  The number of equities being slected is limited to q by a binay decision variable, and the weight total weight of all equities msut sum to 100% of the investment:
-$$\begin{aligned} 
-\sum w_i &= 1.0 \\ 
-w_i &\le z_i, \quad \forall i \in I \\ 
-\sum z_i &\le q, \quad z_i \in \{0, 1\} 
-\end{aligned}$$
-Finally the total dollar cost of moving from the current portfolio ($w_{base}$) to the new optimal weights is constrained to ≤ 0.2% of total portfolio value **B**:
-$$\sum_{i \in I} |w_i - w_{base,i}| \cdot \left( \frac{B \cdot t_{cost,i}}{P_i} \right) \le B * % 0.2$$
+$$
 
-- **Adaptive Bandit Algorithm**
+The number of equities being slected is limited to $q$ by a binay decision variable, and the weight total weight of all equities msut sum to 100% of the investment:
+
+$$
+\begin{aligned}
+\sum w_i &= 1.0 \
+w_i &\le z_i, \quad \forall i \in I \
+\sum z_i &\le q, \quad z_i \in {0, 1}
+\end{aligned}
+$$
+
+Finally the total dollar cost of moving from the current portfolio ($w_{base}$) to the new optimal weights is constrained to $\le 0.2%$ of total portfolio value **B**:
+
+$$
+\sum_{i \in I} |w_i - w_{base,i}| \cdot \left( \frac{B \cdot t_{cost,i}}{P_i} \right) \le 0.002 \cdot B
+$$
+
+---
+
+* **Adaptive Bandit Algorithm**
+
 Adaptive Bandit Algorithm
-The bandit algorithm is currently set up as a recency-weighted walk-forward strategy through the five most recent months. I say 'currently' because this system is continuously being adjusted and improved, so the underlying logic is likely to change. The bandit algorithm is built on a search, score, and adjust framework — a set of beta points are tried, scored by all five rewards, then based on the current objective being tested, adjusted to a new set of beta points. The inter-objective rewarding is structured this way to maximize computational efficiency, since all rewards are computed at each simulation. When the first objective is tested (i.e., Max Return), 150 beta combinations are tried. On each combination, the rewards for the other four objectives are also saved — so once the 150 Max Return iterations finish, the next objective (Volatility) already has 150 sample points to use as a decision base, seeding from whichever beta combination produced the best Volatility score.
-Walk-Forward Structure
-The walk-forward design is in place to continuously expose the algorithm to the most recent data. When optimizing for month tt
-t (e.g., March 2026), the first validation month is t−5t-5
-t−5 (October 2025). The previous 36 months are used as the regression period for the LP optimizer:
 
-Regression: [t−41, t−6]Validation: [t−5, t−1]\text{Regression: } [t-41,\ t-6] \qquad \text{Validation: } [t-5,\ t-1]Regression: [t−41, t−6]Validation: [t−5, t−1]
-The OOS return for October is saved, then all dates shift forward by one month — the new regression period becomes November 2022 – October 2025, optimizing for t−4t-4
-t−4 (November 2025). This continues until all five months are evaluated. The five return streams are then joined into a single dataframe and passed to the reward function.
+The bandit algorithm is currently set up as a recency-weighted walk-forward strategy through the five most recent months. I say "currently" because this system is continuously being adjusted and improved, so the underlying logic is likely to change.
 
-Neighborhood Search
-The hill-climbing step searches in increments of ±0.1\pm 0.1
-±0.1 along each beta dimension, clipped to the following bounds:
+The bandit algorithm is built on a search, score, and adjust framework — a set of beta points are tried, scored by all five rewards, then based on the current objective being tested, adjusted to a new set of beta points.
 
-βMkt∈[0.7, 1.3],βSMB∈[−0.6, 0.6],βHML∈[−0.6, 0.6]\beta_{Mkt} \in [0.7,\ 1.3], \qquad \beta_{SMB} \in [-0.6,\ 0.6], \qquad \beta_{HML} \in [-0.6,\ 0.6]βMkt​∈[0.7, 1.3],βSMB​∈[−0.6, 0.6],βHML​∈[−0.6, 0.6]
-After each hill-climb step, a random perturbation of up to ±0.3\pm 0.3
-±0.3 is applied around the current best to encourage exploration beyond the immediate neighborhood.
+The inter-objective rewarding is structured this way to maximize computational efficiency, since all rewards are computed at each simulation. When the first objective is tested (i.e., Max Return), 150 beta combinations are tried. On each combination, the rewards for the other four objectives are also saved — so once the 150 Max Return iterations finish, the next objective (Volatility) already has 150 sample points to use as a decision base, seeding from whichever beta combination produced the best Volatility score.
 
-Recency Weighting
-The weighted aspect of the bandit is implemented as a recency bias. As more months are included via the walk-forward structure, older periods may reflect less relevant market regimes. To compensate, the five validation months are scored with increasing weight toward the present:
-w=[0.10, 0.15, 0.20, 0.25, 0.30]for months [t−5, t−4, t−3, t−2, t−1]w = [0.10,\ 0.15,\ 0.20,\ 0.25,\ 0.30] \quad \text{for months } [t-5,\ t-4,\ t-3,\ t-2,\ t-1]w=[0.10, 0.15, 0.20, 0.25, 0.30]for months [t−5, t−4, t−3, t−2, t−1]
-As for why five months rather than one or two — optimizing over a single recent month can result in severe overfitting, where the rewards are tuned exclusively to a previous month's conditions. The recency weighting handles the relevance decay without throwing out the broader context.  
-- 
+---
+
+**Walk-Forward Structure**
+
+The walk-forward design is in place to continuously expose the algorithm to the most recent data.
+
+When optimizing for month $t$ (e.g., March 2026), the first validation month is $t-5$ (October 2025). The previous 36 months are used as the regression period for the LP optimizer:
+
+$$
+\text{Regression: } [t-41,\ t-6] \quad \text{Validation: } [t-5,\ t-1]
+$$
+
+The OOS return for October is saved, then all dates shift forward by one month — the new regression period becomes November 2022 – October 2025, optimizing for $t-4$ (November 2025). This continues until all five months are evaluated.
+
+The five return streams are then joined into a single dataframe and passed to the reward function.
+
+---
+
+**Neighborhood Search**
+
+The hill-climbing step searches in increments of:
+
+$$
+\pm 0.1
+$$
+
+along each beta dimension, clipped to the following bounds:
+
+$$
+\beta_{Mkt} \in [0.7, 1.3], \quad \beta_{SMB} \in [-0.6, 0.6], \quad \beta_{HML} \in [-0.6, 0.6]
+$$
+
+After each hill-climb step, a random perturbation of up to:
+
+$$
+\pm 0.3
+$$
+
+is applied around the current best to encourage exploration beyond the immediate neighborhood.
+
+---
+
+**Recency Weighting**
+
+The weighted aspect of the bandit is implemented as a recency bias. As more months are included via the walk-forward structure, older periods may reflect less relevant market regimes.
+
+To compensate, the five validation months are scored with increasing weight toward the present:
+
+$$
+w = [0.10,\ 0.15,\ 0.20,\ 0.25,\ 0.30]
+\quad \text{for months } [t-5,\ t-4,\ t-3,\ t-2,\ t-1]
+$$
+
+As for why five months rather than one or two — optimizing over a single recent month can result in severe overfitting, where the rewards are tuned exclusively to a previous month's conditions. The recency weighting handles the relevance decay without throwing out the broader context.
+
 - **MILP-Based Optimization**: Convert theoretical exposures into implementable portfolios, minimizing error and transaction costs.
 - **Hedging Overlay**: Stabilize factor drift with synthetic hedge logic.
 
