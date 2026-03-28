@@ -146,20 +146,20 @@ preset = st.selectbox(
     [
         "Custom",
         f"Max Return ({betas['max_return'][0]}, {betas['max_return'][1]}, {betas['max_return'][2]})",
-        f"Min Volatility ({betas['volatility'][0]}, {betas['volatility'][1]}, {betas['volatility'][2]})",
+        f"Minimum Volatility ({betas['volatility'][0]}, {betas['volatility'][1]}, {betas['volatility'][2]})",
         f"Max Sharpe ({betas['sharpe'][0]}, {betas['sharpe'][1]}, {betas['sharpe'][2]})",
         f"Max Sortino ({betas['sortino'][0]}, {betas['sortino'][1]}, {betas['sortino'][2]})",
-        f"Min Downside Volatility ({betas['downside_vol'][0]}, {betas['downside_vol'][1]}, {betas['downside_vol'][2]})",
+        f"Minimum Downside Volatility ({betas['downside_vol'][0]}, {betas['downside_vol'][1]}, {betas['downside_vol'][2]})",
     ],
 )
 
 
 PRESET_TO_OBJ = {
     "Max Return": "max_return",
-    "Min Volatility": "volatility",
+    "Minimum Volatility": "volatility",
     "Max Sharpe": "sharpe",
     "Max Sortino": "sortino",
-    "Min Downside Volatility": "downside_vol",
+    "Minimum Downside Volatility": "downside_vol",
 }
 if preset == "Custom":
     col1, col2, col3 = st.columns(3)
@@ -436,7 +436,7 @@ with col1:
     use_constrained_sim = st.toggle(
         "Include constrained holdings in Monte Carlo simulation",
         value=True,
-        disabled=(len(st.session_state.holdings) == 0),
+        disabled=(len(st.session_state.holdings) == 0) or (preset != "Custom"),
         help="If off, simulation runs without locked positions",
     )
 
