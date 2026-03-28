@@ -95,7 +95,7 @@ $$
 \beta_{Mkt} \in [0.7, 1.3], \quad \beta_{SMB} \in [-0.6, 0.6], \quad \beta_{HML} \in [-0.6, 0.6]
 $$
 
-After each hill-climb step, a random uniform check of up to:
+After each hill-climb step, a random uniform search is checked of up to:
 
 $$
 \pm U(0.3)
@@ -118,15 +118,19 @@ $$
 
 As for why five months rather than one or two — optimizing over a single recent month can result in severe overfitting, where the rewards are tuned exclusively to a previous month's conditions. The recency weighting handles the relevance decay without throwing out the broader context.
 
-- **MILP-Based Optimization**: Convert theoretical exposures into implementable portfolios, minimizing error and transaction costs.
-- **Hedging Overlay**: Stabilize factor drift with synthetic hedge logic.
+---
+
+* **Streamlit UI**
+* Input Sections
+** Input Sections
+
 
 
 
 ## 🛠 Tech Stack
 
 - **Languages**: Python 3
-- **Core Libraries**: `pandas`, `numpy`, `matplotlib`, `scipy`, `cvxpy`, `pulp`
+- **Core Libraries**: `pandas`, `numpy`, `matplotlib`, `scipy`, `cvxpy`, `pulp`,'streamlit'
 - **Simulation**: Custom Monte Carlo with bootstrapping
 - **ML/Algo**: ε-decaying bandit algorithm with multi-reward configuration
 - **Optimization**: MILP with constraints on exposure, cardinality, and transaction cost
@@ -136,27 +140,45 @@ As for why five months rather than one or two — optimizing over a single recen
 ## 📁 Project Structure
 
 ```
-/MultiFactor/
-├── build/                      #custom version control (testing)
-├── dist/                       #custom version support (testing)
-├── Johanan's_tenure/           #project 
-├── gitattributes               #git settings
-├── gitignore                   #git settings
-
-/MultiFactor/Johanan's_tenure    #project
-├── __pycache__/                 # Python cache files (auto-generated; can be ignored)
-├── background_scripts/          # Core Python scripts for analysis and logic
-├── input_data/                  # Input data used to generate results
-├── old/                         # Legacy notebooks and files (before Jan '23)
-├── outputs/                     # Generated outputs including results and strategies
-├── requirements/                # Dependencies and tech stack required to run the project
-├── Run simulator copy/          # Duplicate notebooks with full code stack (ignore)
-├── strategies/                  # Algorithmic methods and bandit strategy implementations
-├── Run bandit.ipynb             # Notebook for developing the bandit algorithm
-├── Run convex_optimizer.ipynb   # Notebook for convex portfolio optimization
-├── Run future_simulator.ipynb   # Notebook for futures-based portfolio hedging
-├── Run simulator safety.ipynb   # Development notebook with full functionality (use for development)
-└── Run simulator.ipynb          # Main notebook for running the project in production
+Multi_Factor_25_26/
+├── streamlit_optimizer.py        # Streamlit front-end: inputs, optimization, Monte Carlo visualization
+├── RunSim_utils.py               # Core simulation engine: LP optimizer, walk-forward backtest, all utility functions
+├── run_sim_scheduler.py          # Scheduler for running the bandit algorithm across months (WIP)
+├── Run_Simulator_Messy.py        # Area for building and testing functions of Run simulator
+├── RunSim_utils.ipynb            # Notebook version of RunSim_utils for development/debugging
+├── Run simulator.ipynb           # Notebook for running and inspecting simulations interactively
+│
+├── monthly_prices.csv            # Monthly stock price data for S&P 500 universe
+├── monthly_returns.csv           # Monthly return data derived from prices
+├── spy_data.csv                  # S&P 500 index return data
+├── ff3_wrds.csv                  # Fama-French 3-factor data from WRDS
+├── daat.csv                      # Stock price data used for weight drift calculations
+├── Total SPX.xlsx                # Year-by-year S&P 500 constituent membership
+├── scrape_log.csv                # Log of Stooq scraping results and rate limit hits
+├── requirements.txt              # Python dependencies
+│
+├── Front_End_Strategies/         # Bandit algorithm output CSVs — one folder per objective
+│   ├── max_return/
+│   ├── sharpe/
+│   ├── sortino/
+│   ├── volatility/
+│   └── downside_vol/
+│
+├── Active_Strategy_CSVs/         # CSVs from active strategy runs (old)
+├── Resampled_CSVs/               # CSVs from resampled backtest runs (old)
+├── Resampled_Monthly/            # Monthly resampled output data (old)
+├── Reward_CSVs_Surrogate/        # Surrogate model reward CSVs used in dynamic rebalancing (old)
+│
+├── SPY_Weights.xlsx              # SPY constituent weights
+├── SPY_Ticker_Weights.csv        # Ticker-level SPY weights
+├── SPY_Weights_with_T.csv        # SPY weights with transaction cost data
+├── SPY_V.csv                     # SPY valuation data
+├── SPY_IV.csv                    # SPY implied volatility data
+├── Nifty_50.csv                  # Nifty 50 constituent data (Indian market extension)
+├── nifty_stocks_data.csv         # Nifty 50 stock return data
+├── nifty50_index_data.csv        # Nifty 50 index return data
+│
+└── Useless_csvs/                 # Deprecated or scratch output files
 ```
 
 
@@ -172,9 +194,9 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 [Website](https://johananantonpranesh.github.io/) • [LinkedIn](https://www.linkedin.com/in/johanan-anton-pranesh/) • [Email](mailto:johanananton@outlook.com)
 
 **Vincent Batten**  
-*B.S. Finance '26, Lehigh University*  
+*B.S. Finance '26 (Data Science and Probaility & Stat minors), Lehigh University*  
 *Investment Managment | Data Science*                  
-[LinkedIn](https://www.linkedin.com/in/vincentbatten27/)
+[LinkedIn](https://www.linkedin.com/in/vincentbatten27/) • [Email](mailto:vincentbatten27@gmail.com)
 # Other Contributors
 
 **Kshitij Bhandari**  
