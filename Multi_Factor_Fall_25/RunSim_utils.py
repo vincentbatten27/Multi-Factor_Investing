@@ -1246,7 +1246,7 @@ def new_run_with_backtest_mrebalance_front_end(
 
             try:
                 path = f"Front_End_Strategies/{obj_key}/rebal_explored_{obj_key}_active_{(pd.to_datetime(n_year_after_updated)+ pd.offsets.MonthEnd(0)).date()}.csv"
-                curr_df = pd.read_csv(path)
+                curr_df = pd.read_csv(SCRIPT_DIR / path)
             except FileNotFoundError:
 
                 print("File DNE")
@@ -1817,7 +1817,7 @@ def expand_performance2(df):
 
 def famafrenchreturns_FS():
     global ff3_monthly_FS
-    ff3_monthly_FS = pd.read_csv('ff3_wrds.csv')
+    ff3_monthly_FS = pd.read_csv(SCRIPT_DIR / 'ff3_wrds.csv')
     ff3_monthly_FS.set_index(ff3_monthly_FS['dateff'], inplace=True)
     ff3_monthly_FS.index.name = 'Date'
     ff3_monthly_FS = ff3_monthly_FS.drop(columns={'dateff'})
@@ -2333,7 +2333,7 @@ def optimal_weights_appended(opt_port):
     
     tickers_opt = opt_port.index.tolist()
 
-    prices = pd.read_csv('daat.csv', parse_dates=['date'])
+    prices = pd.read_csv(SCRIPT_DIR / 'daat.csv', parse_dates=['date'])
     prices.drop(columns='PERMNO', inplace=True)
     prices.drop(columns='RET', inplace=True)
     prices.rename(columns={'date': 'Date', 'TICKER': 'Ticker'}, inplace=True)
