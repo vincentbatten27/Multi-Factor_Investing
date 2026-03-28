@@ -4,7 +4,7 @@
 This repository contains the full implementation and research framework for an adaptive multifactor investing strategy, orignally developed as part of a financial engineering capstone. The goal of this project is to leverage simulation-based learning algorithms to achieve five different optimazation goals: Returns, Volatility, Downside Volatility, Sharpe, and Sortino.
 
 
-# Overview
+## Overview
 This project systematically constructs equity portfolios based on the Fama-French 3-Factor Model: **Market (MKT), Size (SMB), and Value (HML)**. The Fama-French 3-Factor model is an extension of the standard mean-variance framework that captures systematic return sources beyond just market exposure.
 <br>
 • **MKT (Market − Risk Free):** Excess return over the risk-free rate (e.g., US Treasury Bills). This is your baseline market exposure.<br>
@@ -18,9 +18,9 @@ There are multiple optional inputs when the optimization is backtested, includin
 
 ---
 
-# How It Works
+## How It Works
 
-* **Optimazation**: The inputted exposure is aligned in the form of:
+### **Optimazation**: The inputted exposure is aligned in the form of:
 
 $$
 RHS_t = \beta_{Mkt} (R_{m,t} - R_{f,t}) + \beta_{SMB} (SMB_t) + \beta_{HML} (HML_t)
@@ -59,9 +59,9 @@ $$
 
 ---
 
-* **Adaptive Bandit Algorithm**
+### **Adaptive Bandit Algorithm**
 
-Adaptive Bandit Algorithm
+#### Adaptive Bandit Algorithm
 
 The bandit algorithm is currently set up as a recency-weighted walk-forward strategy through the five most recent months. I say "currently" because this system is continuously being adjusted and improved, so the underlying logic is likely to change.
 
@@ -70,7 +70,7 @@ The bandit algorithm is built on a search, score, and adjust framework — a set
 The inter-objective rewarding is structured this way to maximize computational efficiency, since all rewards are computed at each simulation. When the first objective is tested (i.e., Max Return), 150 beta combinations are tried. On each combination, the rewards for the other four objectives are also saved — so once the 150 Max Return iterations finish, the next objective (Volatility) already has 150 sample points to use as a decision base, seeding from whichever beta combination produced the best Volatility score.
 
 
-**Walk-Forward Structure**
+#### **Walk-Forward Structure**
 
 The walk-forward design is in place to continuously expose the algorithm to the most recent data.
 
@@ -85,7 +85,7 @@ The OOS return for October is saved, then all dates shift forward by one month �
 The five return streams are then joined into a single dataframe and passed to the reward function.
 
 
-**Neighborhood Search**
+#### **Neighborhood Search**
 
 The hill-climbing step searches in increments of $$\pm 0.1$$ along each beta dimension, clipped to the following bounds:
 
@@ -102,7 +102,7 @@ $$
 is applied around the current best to encourage exploration beyond the immediate neighborhood.
 
 
-**Recency Weighting**
+#### **Recency Weighting**
 
 The weighted aspect of the bandit is implemented as a recency bias. As more months are included via the walk-forward structure, older periods may reflect less relevant market regimes.
 
@@ -117,8 +117,8 @@ As for why five months rather than one or two — optimizing over a single recen
 
 ---
 
-* **Streamlit UI**
-* Input Sections
+### **Streamlit UI**
+####  Input Sections
 ** Input Sections
 
 
