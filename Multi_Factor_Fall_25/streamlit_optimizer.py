@@ -139,20 +139,21 @@ def get_betas():
 
 
 st.header("Target FF3 Exposures")
+betas = get_betas()
 
 preset = st.selectbox(
     "Choose a preset or enter custom values",
     [
         "Custom",
-        "Market Neutral (1, 0, 0)",
-        "Small Value (1, 0.5, 0.5)",
-        "Large Growth (1, -0.5, -0.5)",
-        "Aggressive Growth (1.2, -0.3, -0.3)",
+        f"Max Return ({betas['max_return'][0]}, {betas['max_return'][1]}, {betas['max_return'][2]})",
+        f"Min Volatility ({betas['volatility'][0]}, {betas['volatility'][1]}, {betas['volatility'][2]})",
+        f"Max Sharpe ({betas['sharpe'][0]}, {betas['sharpe'][1]}, {betas['sharpe'][2]})",
+        f"Max Sortino ({betas['sortino'][0]}, {betas['sortino'][1]}, {betas['sortino'][2]})",
+        f"Min Downside Volatility ({betas['downside_vol'][0]}, {betas['downside_vol'][1]}, {betas['downside_vol'][2]})",
     ],
 )
 
 
-curr_betas = get_betas()
 PRESET_TO_OBJ = {
     "Max Return": "max_return",
     "Min Volatility": "volatility",
