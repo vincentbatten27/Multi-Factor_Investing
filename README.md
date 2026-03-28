@@ -69,7 +69,6 @@ The bandit algorithm is built on a search, score, and adjust framework — a set
 
 The inter-objective rewarding is structured this way to maximize computational efficiency, since all rewards are computed at each simulation. When the first objective is tested (i.e., Max Return), 150 beta combinations are tried. On each combination, the rewards for the other four objectives are also saved — so once the 150 Max Return iterations finish, the next objective (Volatility) already has 150 sample points to use as a decision base, seeding from whichever beta combination produced the best Volatility score.
 
----
 
 **Walk-Forward Structure**
 
@@ -85,7 +84,6 @@ The OOS return for October is saved, then all dates shift forward by one month �
 
 The five return streams are then joined into a single dataframe and passed to the reward function.
 
----
 
 **Neighborhood Search**
 
@@ -103,7 +101,6 @@ $$
 
 is applied around the current best to encourage exploration beyond the immediate neighborhood.
 
----
 
 **Recency Weighting**
 
