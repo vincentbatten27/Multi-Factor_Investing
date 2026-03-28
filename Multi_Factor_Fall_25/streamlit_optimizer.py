@@ -637,7 +637,7 @@ footer = """
 <div class="footer">
     <p>Developed by <b>Vincent Batten</b> | 
     <a href="mailto:vincentbatten27@gmail.com">Contact Me</a> | 
-    Original Logic by <b>Johanan Pranesh</b><br>
+    <i>Original Logic by</i> <b>Johanan Pranesh</b><br>
     Created alongside <b>Nate Songstad, Kshitij Bhandari</b><br>
     Sponsored by: <b>Jordan Weintraub</b></p>
 </div>
