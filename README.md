@@ -13,12 +13,8 @@ This project systematically constructs equity portfolios based on the Fama-Frenc
 
 Using a 3-factor model instead of single-factor mean-variance gives more granular control over the return stream by independently adjusting exposure to each systematic factor.
 The model uses linear regression to estimate how a portfolio's return stream will behave in the out-of-sample period. The inputted factor targets (e.g., MKT-Rf, SMB, HML = 1.2, 0.2, −0.2) are aligned through Linear Programming Tracking Error Minimization — the goal being to find a combination of stocks where the difference between the regression period's return stream and the Fama-French target is as small as possible. The three constraints are: the number of stocks selected (q), a transaction cost cap of 0.2% per rebalance period, and portfolio weights summing to 100%.
+
 There are multiple optional inputs when the optimization is backtested, including the number of regression years, the number of out-of-sample months, total portfolio value, and whether the portfolio is rebalanced statically or dynamically. The static strategy rebalances each period to the same originally inputted beta points. The dynamic strategy instead rebalances to the locally optimized beta points for each period — for example, when the objective is Sortino, each rebalance period uses the historical beta combination that maximized Sortino for that window, as determined by the bandit algorithm.
-
-
-## How It Works
-
-Got it — same wording, just cleaned formatting, fixed LaTeX, spacing, and structure.
 
 ---
 
