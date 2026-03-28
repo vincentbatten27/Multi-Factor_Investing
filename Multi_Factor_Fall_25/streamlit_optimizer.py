@@ -622,7 +622,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
 footer = """
 <style>
 .footer {
-    position: fixed;
+    position: relative;
     left: 0;
     bottom: 0;
     width: 100%;
@@ -637,7 +637,8 @@ footer = """
 <div class="footer">
     <p>Developed by <b>Vincent Batten</b> | 
     <a href="mailto:vincentbatten27@gmail.com">Contact Me</a> | 
-    Created alongside <b>Johanan Pranesh, Nate Songstad, Kshitij Bhandari</b><br>
+    Built with <b>Johanan Pranesh | 
+    Created alongside <b>Nate Songstad, Kshitij Bhandari</b><br>
     Sponsored by: <b>Jordan Weintraub</b></p>
 </div>
 """
