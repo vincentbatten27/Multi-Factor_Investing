@@ -633,10 +633,6 @@ footer = """
     border-top: 1px solid #e6e6e6;
     margin-top: 50px; /* Pushes it away from your last chart/table */
 }
-.footer a {
-    color: #ff4b4b; /* Optional: Makes the link the classic Streamlit red */
-    text-decoration: none;
-}
 .footer a:hover {
     text-decoration: underline;
 }
@@ -644,7 +640,7 @@ footer = """
 
 <div class="footer">
     <p>Developed by <b>Vincent Batten</b> | 
-    <a href="mailto:vincentbatten27@gmail.com?subject=Beta Optimization App Inquiry">Contact Me</a> | 
+    ✉ Email <a href="mailto:vincentbatten27@gmail.com?subject=Beta Optimization App Inquiry">vincentbatten27@gmail.com</a> | 
     <i>Original Logic by</i> <b>Johanan Pranesh</b><br>
     Created alongside <b>Nate Songstad & Kshitij Bhandari</b><br>
     Sponsored by: <b>Jordan Weintraub</b></p>
