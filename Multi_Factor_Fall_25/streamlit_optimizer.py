@@ -126,7 +126,14 @@ preset = st.selectbox(
         "Aggressive Growth (1.2, -0.3, -0.3)",
     ],
 )
-
+curr_betas = get_betas()
+PRESET_TO_OBJ = {
+    "Max Return": "max_return",
+    "Min Volatility": "volatility",
+    "Max Sharpe": "sharpe",
+    "Max Sortino": "sortino",
+    "Min Downside Volatility": "downside_vol",
+}
 if preset == "Custom":
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -153,29 +160,32 @@ if preset == "Custom":
             format="%.2f",
             help="High minus Low (positive = value tilt)",
         )
+    
+elif preset == f"Max Return ({betas['max_return'][0]}, {betas['max_return'][1]}, {betas['max_return'][2]})":
+    target_mkt, target_smb, target_hml = betas['max_return'][0], betas['max_return'][1], betas['max_return'][2]
 
-    elif preset == f"Max Return {betaa_maxr, betaz....}":
-    target_mkt, target_smb, target_hml =
-    elif preset == f"Min Volatility {beta_minv},{}":
-        target_mkt, target_smb, target_hml = 
-    elif preset == "Large Growth (1, -0.5, -0.5)":
-        target_mkt, target_smb, target_hml = 
-    else:
-        target_mkt, target_smb, target_hml = 
-# elif preset == "Market Neutral (1, 0, 0)":
-#     target_mkt, target_smb, target_hml = 1.0, 0.0, 0.0
-# elif preset == "Small Value (1, 0.5, 0.5)":
-#     target_mkt, target_smb, target_hml = 1.0, 0.5, 0.5
-# elif preset == "Large Growth (1, -0.5, -0.5)":
-#     target_mkt, target_smb, target_hml = 1.0, -0.5, -0.5
-# else:
-#     target_mkt, target_smb, target_hml = 1.2, -0.3, -0.3
+elif preset == f"Min Volatility ({betas['volatility'][0]}, {betas['volatility'][1]}, {betas['volatility'][2]})":
+    target_mkt, target_smb, target_hml = betas['volatility'][0], betas['volatility'][1], betas['volatility'][2]
+
+elif preset == f"Max Sharpe ({betas['sharpe'][0]}, {betas['sharpe'][1]}, {betas['sharpe'][2]})":
+    target_mkt, target_smb, target_hml = betas['sharpe'][0], betas['sharpe'][1], betas['sharpe'][2]
+
+elif preset == f"Max Sortino ({betas['sortino'][0]}, {betas['sortino'][1]}, {betas['sortino'][2]})":
+    target_mkt, target_smb, target_hml = betas['sortino'][0], betas['sortino'][1], betas['sortino'][2]
+
+elif preset == f"Min Downside Volatility ({betas['downside_vol'][0]}, {betas['downside_vol'][1]}, {betas['downside_vol'][2]})":
+    target_mkt, target_smb, target_hml = betas['downside_vol'][0], betas['downside_vol'][1], betas['downside_vol'][2]
+
+else:
+    target_mkt, target_smb, target_hml = 1,0,0
+
 
 if preset != "Custom":
     col1, col2, col3 = st.columns(3)
     col1.metric("MKT (Market)", f"{target_mkt:.2f}")
     col2.metric("SMB (Size)", f"{target_smb:.2f}")
     col3.metric("HML (Value)", f"{target_hml:.2f}")
+    obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
 
 st.divider()
 
@@ -183,6 +193,27 @@ st.divider()
 # =============================================================================
 # OPTIMIZATION FUNCTION
 # =============================================================================
+def get_betas():
+    OBJECTIVES = ["max_return", "sharpe", "sortino", "volatility", "downside_vol"]
+    betas = {}
+
+    today = pd.Timestamp.now()
+    target_date = today.replace(day=1)
+    target_date = target_date.normalize()
+    curr_weights = target_date.date()
+    weights_opt_d = curr_weights - relativedelta(days=1)
+
+    for obj in OBJECTIVES:
+        path = f"Front_End_Strategies/{obj}/rebal_explored_{obj}_active_{weights_opt_d.strftime('%Y-%m-%d')}.csv"
+        df = pd.read_csv(path)
+        curr_df = df.sort_values(by='reward')
+        betaA = curr_df.iloc[-1][0]
+        betaB = curr_df.iloc[-1][1]
+        betaC = curr_df.iloc[-1][2]
+        betas[obj] = [betaA,betaB,betaC]
+
+    return betas
+
 def final_visuala(ddfs):
     import plotly.graph_objects as go
 
@@ -518,8 +549,14 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             with st.spinner("Running Monte Carlo simulation..."):
                 curr_weights = target_date.date()
                 end_sim = curr_weights - relativedelta(days=1)
-
-                oos1_list, oos1_avg, oos1_y = monte_carlo_simulation(
+                if preset == "Custom":
+                    key = 'm'
+                    obj_key = None
+                else: 
+                    key = 'drm'
+                    obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
+                    
+                oos1_list, oos1_avg, oos1_y,weights = monte_carlo_simulation(
                     num_runs,
                     target_mkt,
                     target_smb,
@@ -534,6 +571,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                     new_monthly_data,
                     indexgspc1,
                     spy_yoy_tickers1,
+                    obj_key
                 )
 
                 avg_drm = final_visuala(oos1_list)
