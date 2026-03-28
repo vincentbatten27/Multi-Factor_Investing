@@ -618,7 +618,6 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             """
             )
 
-# Custom Footer HTML
 footer = """
 <style>
 .footer {
@@ -626,21 +625,31 @@ footer = """
     left: 0;
     bottom: 0;
     width: 100%;
-    background-color: white;
-    color: black;
+    background-color: transparent; /* Changed to transparent to blend with Streamlit themes */
+    color: #31333F;
     text-align: center;
-    padding: 10px;
+    padding: 20px 10px; /* Added vertical padding for breathing room */
     font-size: 14px;
     border-top: 1px solid #e6e6e6;
+    margin-top: 50px; /* Pushes it away from your last chart/table */
+}
+.footer a {
+    color: #ff4b4b; /* Optional: Makes the link the classic Streamlit red */
+    text-decoration: none;
+}
+.footer a:hover {
+    text-decoration: underline;
 }
 </style>
+
 <div class="footer">
     <p>Developed by <b>Vincent Batten</b> | 
-    <a href="mailto:vincentbatten27@gmail.com">Contact Me</a> | 
+    <a href="mailto:vincentbatten27@gmail.com?subject=Beta Optimization App Inquiry">Contact Me</a> | 
     <i>Original Logic by</i> <b>Johanan Pranesh</b><br>
-    Created alongside <b>Nate Songstad, Kshitij Bhandari</b><br>
+    Created alongside <b>Nate Songstad & Kshitij Bhandari</b><br>
     Sponsored by: <b>Jordan Weintraub</b></p>
 </div>
 """
 
+# Place this line at the very end of your script
 st.markdown(footer, unsafe_allow_html=True)
