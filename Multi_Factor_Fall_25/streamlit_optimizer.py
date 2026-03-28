@@ -221,7 +221,7 @@ st.divider()
 # OPTIMIZATION FUNCTION
 # =============================================================================
 
-def final_visuala(ddfs):
+def final_visuala(ddfs, expected_betas=None):
     import plotly.graph_objects as go
 
     concatenated_df = pd.concat(ddfs, axis=1)
@@ -261,6 +261,14 @@ def final_visuala(ddfs):
     )
 
     # Optimized Portfolio (average)
+    beta_hover = ''
+    if expected_betas:
+        beta_lines = [
+            f"Month {i+1}: β_mkt={b[0]}, β_smb={b[1]}, β_hml={b[2]}"
+            for i, b in enumerate(expected_betas)
+        ]
+        beta_hover = "<br>" + "<br>".join(beta_lines)
+
     fig.add_trace(
         go.Scatter(
             x=averaged_df.index,
@@ -269,6 +277,7 @@ def final_visuala(ddfs):
             name="Optimized Portfolio",
             line=dict(color="royalblue", width=2.5),
             marker=dict(color="royalblue", size=5, symbol="circle"),
+            customdata=expected_betas if expected_betas else [[None,None,None]]*len(averaged_df),
             hovertemplate="%{x|%b %Y}<br>Portfolio: $%{y:.3f}<extra></extra>",
         )
     )
@@ -437,7 +446,7 @@ with col1:
         "Include constrained holdings in Monte Carlo simulation",
         value=True,
         disabled=(len(st.session_state.holdings) == 0) or (preset != "Custom"),
-        help="If off, simulation runs without locked positions",
+        help="If off, simulation runs without locked positions \nSelecting Optimized Beta will automatically override and exclude any Custom Constrained Holdings",
     )
 
 with col2:
@@ -563,26 +572,31 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                     key = 'drm'
                     obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
 
-                oos1_list, oos1_avg, oos1_y,weights = monte_carlo_simulation(
-                    num_runs,
-                    target_mkt,
-                    target_smb,
-                    target_hml,
-                    end_sim,
-                    3,
-                    1,
-                    total_value,
-                    "m",
-                    sim_constrained,
-                    price_monthly_data,
-                    new_monthly_data,
-                    indexgspc1,
-                    spy_yoy_tickers1,
-                    obj_key
-                )
+                # rebalace_opt_weights is opt_portf_weights for each period
+                oos1_list, oos1_avg, oos1_y, expected_betas, rebalance_opt_weights = (
+                    monte_carlo_simulation(
+                        num_runs,
+                        target_mkt,
+                        target_smb,
+                        target_hml,
+                        end_sim,
+                        3,
+                        1,
+                        total_value,
+                        "m",
+                        sim_constrained,
+                        price_monthly_data,
+                        new_monthly_data,
+                        indexgspc1,
+                        spy_yoy_tickers1,
+                        obj_key,
+                    )
+                ) 
 
                 avg_drm = final_visuala(oos1_list)
-
+                weights_port = rebalanced_optimal_weights_m(
+                    oos1_list[0], rebalance_opt_weights, price_monthly_data
+                )
         except Exception as e:
             st.error("Optimization failed!")
             st.error(f"**Error:** {str(e)}")

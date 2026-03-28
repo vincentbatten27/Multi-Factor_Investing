@@ -1781,8 +1781,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
             sums[key] += value
     num_dicts = len(yearly_returns)
     averages = {key: sums[key] / num_dicts for key in sums}
-    weights_port = rebalanced_optimal_weights_m(results)
-    return results,yearly_returns,averages, weights_port
+    return results,yearly_returns,averages, expected_betas, rebalance_opt_weights
 # In[135]:
 
 
@@ -2288,7 +2287,7 @@ def rebalanced_optimal_weights_y():
 # In[148]:
 
 
-def rebalanced_optimal_weights_m(oos1_list):
+def rebalanced_optimal_weights_m(oos1_list,rebalance_opt_weights,price_monthly_data):
     global rebalance_optimal_weights_appended 
     
     full_tickers = price_monthly_data.columns
