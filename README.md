@@ -36,7 +36,7 @@ Absolute values are non-linear, so we introduce auxiliary variables ($\epsilon_t
 
 $$
 \begin{aligned}
-\sum_{i \in I} (w_i \cdot X_{i,t}) - \epsilon_t &\le RHS_t \<br>
+\sum_{i \in I} (w_i \cdot X_{i,t}) - \epsilon_t &\le RHS_t \\
 \sum_{i \in I} (w_i \cdot X_{i,t}) + \epsilon_t &\ge RHS_t
 \end{aligned}
 $$
@@ -45,8 +45,8 @@ The number of equities being slected is limited to $q$ by a binay decision varia
 
 $$
 \begin{aligned}
-\sum w_i &= 1.0 \<br>
-w_i &\le z_i, \quad \forall i \in I \<br>
+\sum w_i &= 1.0 \\
+w_i &\le z_i, \quad \forall i \in I \\
 \sum z_i &\le q, \quad z_i \in {0, 1}
 \end{aligned}
 $$
