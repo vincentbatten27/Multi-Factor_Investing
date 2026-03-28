@@ -593,10 +593,10 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                     )
                 ) 
 
-                avg_drm = final_visuala(oos1_list)
-                weights_port = rebalanced_optimal_weights_m(
-                    oos1_list[0], rebalance_opt_weights, price_monthly_data
-                )
+                avg_drm = final_visuala(oos1_list, expected_betas)
+                # weights_port = rebalanced_optimal_weights_m(
+                #     oos1_list[0], rebalance_opt_weights, price_monthly_data
+                # )
         except Exception as e:
             st.error("Optimization failed!")
             st.error(f"**Error:** {str(e)}")
