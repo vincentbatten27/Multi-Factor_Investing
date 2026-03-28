@@ -111,9 +111,32 @@ else:
 
 st.divider()
 
+
 # =============================================================================
 # INPUT 3: Target FF3 Factors
 # =============================================================================
+def get_betas():
+    OBJECTIVES = ["max_return", "sharpe", "sortino", "volatility", "downside_vol"]
+    betas = {}
+
+    today = pd.Timestamp.now()
+    target_date = today.replace(day=1)
+    target_date = target_date.normalize()
+    curr_weights = target_date.date()
+    weights_opt_d = curr_weights - relativedelta(days=1)
+
+    for obj in OBJECTIVES:
+        path = f"Front_End_Strategies/{obj}/rebal_explored_{obj}_active_{weights_opt_d.strftime('%Y-%m-%d')}.csv"
+        df = pd.read_csv(path)
+        curr_df = df.sort_values(by="reward")
+        betaA = curr_df.iloc[-1][0]
+        betaB = curr_df.iloc[-1][1]
+        betaC = curr_df.iloc[-1][2]
+        betas[obj] = [betaA, betaB, betaC]
+
+    return betas
+
+
 st.header("Target FF3 Exposures")
 
 preset = st.selectbox(
@@ -126,6 +149,8 @@ preset = st.selectbox(
         "Aggressive Growth (1.2, -0.3, -0.3)",
     ],
 )
+
+
 curr_betas = get_betas()
 PRESET_TO_OBJ = {
     "Max Return": "max_return",
@@ -193,26 +218,6 @@ st.divider()
 # =============================================================================
 # OPTIMIZATION FUNCTION
 # =============================================================================
-def get_betas():
-    OBJECTIVES = ["max_return", "sharpe", "sortino", "volatility", "downside_vol"]
-    betas = {}
-
-    today = pd.Timestamp.now()
-    target_date = today.replace(day=1)
-    target_date = target_date.normalize()
-    curr_weights = target_date.date()
-    weights_opt_d = curr_weights - relativedelta(days=1)
-
-    for obj in OBJECTIVES:
-        path = f"Front_End_Strategies/{obj}/rebal_explored_{obj}_active_{weights_opt_d.strftime('%Y-%m-%d')}.csv"
-        df = pd.read_csv(path)
-        curr_df = df.sort_values(by='reward')
-        betaA = curr_df.iloc[-1][0]
-        betaB = curr_df.iloc[-1][1]
-        betaC = curr_df.iloc[-1][2]
-        betas[obj] = [betaA,betaB,betaC]
-
-    return betas
 
 def final_visuala(ddfs):
     import plotly.graph_objects as go
@@ -555,7 +560,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 else: 
                     key = 'drm'
                     obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
-                    
+
                 oos1_list, oos1_avg, oos1_y,weights = monte_carlo_simulation(
                     num_runs,
                     target_mkt,
