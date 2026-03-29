@@ -57,10 +57,13 @@ $$
 \sum_{i \in I} |w_i - w_{base,i}| \cdot \left( \frac{B \cdot t_{cost,i}}{P_i} \right) \le 0.002 \cdot B
 $$
 
-Finally, there is an optional constraint for existing weights. This allows an investor to plug in an already held portfolio, and the optimization maintains a minimum level of weights based on the starting value.The optimization model then treats the inputted weights as minimum constraints when selecting the equities to fit to the set of inputted beta points — adjusting the other equities to compensate.$$\begin{aligned}
+Finally, there is an optional constraint for existing weights. This allows an investor to plug in an already held portfolio, and the optimization maintains a minimum level of weights based on the starting value.The optimization model then treats the inputted weights as minimum constraints when selecting the equities to fit to the set of inputted beta points — adjusting the other equities to compensate.
+$$
+\begin{aligned}
 w_i &\ge w_{i, \text{initial}} \quad \forall i \in I_{\text{existing}} \\
 \sum_{i \in I} w_i &= 1
-\end{aligned}$$
+\end{aligned}
+$$
 
 ---
 
