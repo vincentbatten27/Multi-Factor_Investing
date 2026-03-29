@@ -166,55 +166,24 @@ PRESET_TO_OBJ = {
 if preset == "Custom":
     col1, col2, col3 = st.columns(3)
     with col1:
-        target_mkt = st.number_input(
-            "MKT (Market)",
-            value=1.0,
-            step=0.1,
-            format="%.2f",
-            help="Market exposure (typically around 1.0)",
-        )
+        target_mkt = st.number_input("MKT (Market)", value=1.0, step=0.1, format="%.2f",
+            help="Market exposure (typically around 1.0)")
     with col2:
-        target_smb = st.number_input(
-            "SMB (Size)",
-            value=0.0,
-            step=0.1,
-            format="%.2f",
-            help="Small minus Big (positive = small cap tilt)",
-        )
+        target_smb = st.number_input("SMB (Size)", value=0.0, step=0.1, format="%.2f",
+            help="Small minus Big (positive = small cap tilt)")
     with col3:
-        target_hml = st.number_input(
-            "HML (Value)",
-            value=0.0,
-            step=0.1,
-            format="%.2f",
-            help="High minus Low (positive = value tilt)",
-        )
-    
-elif preset == f"Max Return ({betas['max_return'][0]}, {betas['max_return'][1]}, {betas['max_return'][2]})":
-    target_mkt, target_smb, target_hml = betas['max_return'][0], betas['max_return'][1], betas['max_return'][2]
-
-elif preset == f"Min Volatility ({betas['volatility'][0]}, {betas['volatility'][1]}, {betas['volatility'][2]})":
-    target_mkt, target_smb, target_hml = betas['volatility'][0], betas['volatility'][1], betas['volatility'][2]
-
-elif preset == f"Max Sharpe ({betas['sharpe'][0]}, {betas['sharpe'][1]}, {betas['sharpe'][2]})":
-    target_mkt, target_smb, target_hml = betas['sharpe'][0], betas['sharpe'][1], betas['sharpe'][2]
-
-elif preset == f"Max Sortino ({betas['sortino'][0]}, {betas['sortino'][1]}, {betas['sortino'][2]})":
-    target_mkt, target_smb, target_hml = betas['sortino'][0], betas['sortino'][1], betas['sortino'][2]
-
-elif preset == f"Min Downside Volatility ({betas['downside_vol'][0]}, {betas['downside_vol'][1]}, {betas['downside_vol'][2]})":
-    target_mkt, target_smb, target_hml = betas['downside_vol'][0], betas['downside_vol'][1], betas['downside_vol'][2]
-
-
-if preset != "Custom":
+        target_hml = st.number_input("HML (Value)", value=0.0, step=0.1, format="%.2f",
+            help="High minus Low (positive = value tilt)")
+    obj_key = None
+else:
+    obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
+    target_mkt, target_smb, target_hml = betas[obj_key]
     col1, col2, col3 = st.columns(3)
     col1.metric("MKT (Market)", f"{target_mkt:.2f}")
     col2.metric("SMB (Size)", f"{target_smb:.2f}")
     col3.metric("HML (Value)", f"{target_hml:.2f}")
-    obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
 
 st.divider()
-
 
 # =============================================================================
 # OPTIMIZATION FUNCTION
@@ -281,7 +250,11 @@ def final_visuala(ddfs, expected_betas=None):
                 if expected_betas
                 else [[None, None, None]] * len(averaged_df)
             ),
-            hovertemplate="%{x|%b %Y}<br>Portfolio: $%{y:.3f}<br>β<sub>Mkt<sub>=%{customdata[0]}, β<sub>SMB<sub>=%{customdata[1]}, β<sub>HML<sub>=%{customdata[2]}<extra></extra>",
+            hovertemplate="%{x|%b %Y}<br>Portfolio: $%{y:.3f}<br>"
+            "β<sub>Mkt</sub>=%{customdata[0]}, "
+            "β<sub>SMB</sub>=%{customdata[1]}, "
+            "β<sub>HML</sub>=%{customdata[2]}"
+            "<extra></extra>",
         )
     )
 
@@ -360,7 +333,6 @@ def final_visuala(ddfs, expected_betas=None):
         ),
         width="stretch",
     )
-
 
     return averaged_df
 
