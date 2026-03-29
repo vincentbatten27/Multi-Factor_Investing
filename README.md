@@ -58,13 +58,6 @@ $$
 
 Finally, there is an optional constraint for existing weights. This allows an investor to plug in an already held portfolio, and the optimization maintains a minimum level of weights based on the starting value.The optimization model then treats the inputted weights as minimum constraints when selecting the equities to fit to the set of inputted beta points — adjusting the other equities to compensate.
 
-$$
-\begin{aligned}
-w_i &\ge w_{i, \text{initial}} \quad \forall i \in I_{\text{existing}} \\
-\sum_{i \in I} w_i &= 1
-\end{aligned}
-$$
-
 ---
 
 ### **Adaptive Bandit Algorithm**
@@ -129,13 +122,18 @@ As for why five months rather than one or two — optimizing over a single recen
 ---
 
 ### **Streamlit UI**
+[Live Demo - Multi-Factor Investing App](https://multi-factor-investing.streamlit.app)
+
 
 ####  User Interface
 
-The Streamlit User Interface is the front end of the optimazation and bandit algorithm system. It allows users to decide on what beta points to seta portfolio to, what and if any tickers to 
+The Streamlit User Interface is the front end of the optimazation and bandit algorithm system. It creates an enviroment where optional inputs can be decided on, and the current weights and historical perfromance will be displayed. It allows users to decide on what beta points to set a portfolio to, any constrained holdings or previous portfolios, and the Fama-French beta targets: whether it be custom or reccomended by the adaptive bandit algorithm.
 
 
+#### Presets
+Each preset (Max Return, Min Volatility, etc.) is populated dynamically from the bandit's best found beta combination for that objective as of the current month's CSV. Selecting a preset locks the constrained holdings toggle and passes two keys:'drm' for dynamic rebalancing monthly, and the preset objective that was selected. The historical performance is iteravely rebalanced to its own locally optimal betas rather than holding the selected preset fixed (as the custom option will do).
 
+---
 
 ## 🛠 Tech Stack
 
@@ -191,10 +189,12 @@ Multi_Factor_25_26/
 └── Useless_csvs/                 # Deprecated or scratch output files
 ```
 
+---
 
-
-## 📜 License 
+## License 
 MIT License. Feel free to use, extend, and build upon this research framework. Contributions welcome.
+
+---
 
 ## 👤 Authors
 
