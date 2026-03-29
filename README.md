@@ -1,7 +1,7 @@
 
 # Multi-Factor Investing 
 
-This repository contains the full implementation and research framework for an adaptive multifactor investing strategy, orignally developed as part of a financial engineering capstone. The goal of this project is to leverage simulation-based learning algorithms to achieve five different optimazation goals: Returns, Volatility, Downside Volatility, Sharpe, and Sortino.
+This repository contains the full implementation and research framework for an adaptive multifactor investing strategy, orignally developed as part of a financial engineering capstone. The goal of this project is to leverage simulation-based learning algorithms to achieve five different optimization goals: Returns, Volatility, Downside Volatility, Sharpe, and Sortino.
 
 
 ## Overview
@@ -20,7 +20,7 @@ There are multiple optional inputs when the optimization is backtested, includin
 
 ## How It Works
 
-### **Optimazation**: The inputted exposure is aligned in the form of:
+### **Optimization**: The inputted exposure is aligned in the form of:
 
 $$
 RHS_t = \beta_{Mkt} (R_{m,t} - R_{f,t}) + \beta_{SMB} (SMB_t) + \beta_{HML} (HML_t)
@@ -96,7 +96,7 @@ $$
 \beta_{Mkt} \in [0.7, 1.3], \quad \beta_{SMB} \in [-0.6, 0.6], \quad \beta_{HML} \in [-0.6, 0.6]
 $$
 
-After each hill-climb step, a random uniform search is checked of up to:
+After each hill-climb step, a random uniform beta shift is applied to expand the search:
 
 $$
 \pm U(0.3)
@@ -127,7 +127,7 @@ As for why five months rather than one or two — optimizing over a single recen
 
 ####  User Interface
 
-The Streamlit User Interface is the front end of the optimazation and bandit algorithm system. It creates an enviroment where optional inputs can be decided on, and the current weights and historical perfromance will be displayed. It allows users to decide on what beta points to set a portfolio to, any constrained holdings or previous portfolios, and the Fama-French beta targets: whether it be custom or reccomended by the adaptive bandit algorithm.
+The Streamlit User Interface is the front end of the optimization and bandit algorithm system. It creates an enviroment where optional inputs can be decided on, and the current weights and historical perfromance will be displayed. It allows users to decide on what beta points to set a portfolio to, any constrained holdings or previous portfolios, and the Fama-French beta targets: whether it be custom or reccomended by the adaptive bandit algorithm.
 
 
 #### Presets
@@ -138,7 +138,7 @@ Each preset (Max Return, Min Volatility, etc.) is populated dynamically from the
 ## 🛠 Tech Stack
 
 - **Languages**: Python 3
-- **Core Libraries**: `pandas`, `numpy`, `matplotlib`, `scipy`, `cvxpy`, `pulp`,'streamlit'
+- **Core Libraries**: `pandas`, `numpy`, `matplotlib`, `scipy`, `pulp`,'streamlit', 'datetime'
 - **Simulation**: Custom Monte Carlo with bootstrapping
 - **ML/Algo**: ε-decaying bandit algorithm with multi-reward configuration
 - **Optimization**: MILP with constraints on exposure, cardinality, and transaction cost
@@ -223,8 +223,5 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 *M.S. Financial Engineering '27, Lehigh University*  
 
 ## Former Contributors
-**Shisheng Liang**  
-*M.S. Financial Engineering'25, Lehigh University*  
-
 **Asim Turk**  
-*M.S. Financial Engineering'24, Lehigh University*  
+*M.S. Financial Engineering'24, Lehigh University* 
