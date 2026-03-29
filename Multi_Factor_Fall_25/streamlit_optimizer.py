@@ -189,7 +189,7 @@ st.divider()
 # OPTIMIZATION FUNCTION
 # =============================================================================
 
-def final_visuala(ddfs, expected_betas=None):
+def final_visuala(ddfs, expected_betas=None, obj):
     import plotly.graph_objects as go
 
     concatenated_df = pd.concat(ddfs, axis=1)
@@ -263,10 +263,10 @@ def final_visuala(ddfs, expected_betas=None):
         fig.add_vline(
             x=date, line=dict(color="rgba(150, 150, 150, 0.2)", width=1, dash="dot")
         )
-
+    obj_label = obj_key.replace("_", " ").title() if obj_key else "Custom"
     fig.update_layout(
         title=dict(
-            text="Optimized Portfolio vs S&P 500<br><sup>Growth of $1 invested</sup>",
+            text=f"Optimized Portfolio vs S&P 500 — {obj_label}<br><sup>Growth of $1 invested</sup>",
             font=dict(size=18),
         ),
         xaxis=dict(title="Date", tickformat="%b %Y", tickangle=-45, showgrid=False),
@@ -580,7 +580,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                     )
                 )
 
-                avg_drm = final_visuala(oos1_list, expected_betas)
+                avg_drm = final_visuala(oos1_list, expected_betas,obj_key)
                 # weights_port = rebalanced_optimal_weights_m(
                 #     oos1_list[0], rebalance_opt_weights, price_monthly_data
                 # )
