@@ -363,6 +363,11 @@ def final_visuala(ddfs, expected_betas=None):
         ),
         width="stretch",
     )
+    st.caption(
+        "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
+        "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. "
+        "Return streams do not account for short-term capital gains taxes or dividend reinvestment."
+    )
 
     return averaged_df
 
@@ -630,11 +635,6 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             - Try without constrained holdings first to isolate the issue
             """
             )
-st.caption(
-    "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
-    "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. "
-    "Return streams do not account for short-term capital gains taxes or dividend reinvestment."
-)
 footer = """
 <style>
 .footer {
