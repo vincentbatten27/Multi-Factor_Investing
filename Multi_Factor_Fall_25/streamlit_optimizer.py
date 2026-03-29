@@ -26,7 +26,7 @@ price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
 
 st.title("Multi-Factor Investing")
 st.caption(
-    "Optimize portfolio weights to achieve target three Fama-French exposures from S&P 500 equity universe. \n"
+    "Optimize portfolio weights to achieve target three Fama-French exposures from S&P 500 equity universe.<br>"
     "[ℹ️ Documentation](https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md)"
 )
 
@@ -444,7 +444,7 @@ st.divider()
 # =============================================================================
 st.subheader("Simulation Options")
 
-col1, col2 = st.columns([2, 1])
+col1, col2,col3 = st.columns([2, 2])
 
 with col1:
     use_constrained_sim = st.toggle(
@@ -473,7 +473,7 @@ with col3:
         step=1,
         help="Number of years to see results for"
     )
-    
+
 st.caption("Each year of testing takes approximately 30–45 seconds to run.")
 st.divider()
 
