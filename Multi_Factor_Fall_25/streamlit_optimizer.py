@@ -205,9 +205,6 @@ elif preset == f"Max Sortino ({betas['sortino'][0]}, {betas['sortino'][1]}, {bet
 elif preset == f"Min Downside Volatility ({betas['downside_vol'][0]}, {betas['downside_vol'][1]}, {betas['downside_vol'][2]})":
     target_mkt, target_smb, target_hml = betas['downside_vol'][0], betas['downside_vol'][1], betas['downside_vol'][2]
 
-else:
-    target_mkt, target_smb, target_hml = 1,0,0
-
 
 if preset != "Custom":
     col1, col2, col3 = st.columns(3)
