@@ -570,7 +570,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                         3,
                         out_years,
                         total_value,
-                        "m",
+                        key,
                         sim_constrained,
                         price_monthly_data,
                         new_monthly_data,
