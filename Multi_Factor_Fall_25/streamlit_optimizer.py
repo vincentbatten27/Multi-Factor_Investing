@@ -28,6 +28,26 @@ st.title("Multi-Factor Investing")
 st.caption(
     "Optimize portfolio weights to achieve target three fama-french exposures from S&P 500 equity universe."
 )
+with st.expander("ℹ️ About This App"):
+    st.markdown("""
+    ## Multi-Factor Portfolio Optimizer
+
+    This tool constructs equity portfolios targeting specific **Fama-French 3-Factor** exposures —
+    Market (MKT), Size (SMB), and Value (HML) — using Linear Programming Tracking Error Minimization
+    over the S&P 500 universe.
+
+    **How it works:**
+    - Input a target beta combination or select a preset optimized by the adaptive bandit algorithm
+    - The LP optimizer finds a portfolio of up to 50 stocks that minimizes deviation from your FF3 targets
+    - The Monte Carlo simulation shows walk-forward historical performance with monthly rebalancing
+    - Presets (Max Return, Min Vol, etc.) dynamically pull the current month's bandit-optimized betas
+
+    **Optimization objectives:** Max Return · Sharpe · Sortino · Min Volatility · Min Downside Volatility
+
+    For full methodology, math, and documentation:
+    [📄 View Full README on GitHub](https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md)
+
+    """)
 
 # =============================================================================
 # INPUT 1: Total Portfolio Value
