@@ -51,11 +51,16 @@ w_i &\le z_i, \quad \forall i \in I \\
 \end{aligned}
 $$
 
-Finally the total dollar cost of moving from the current portfolio ($w_{base}$) to the new optimal weights is constrained to ≤$\le 0.2%$ of total portfolio value **B**:
+The total dollar cost of moving from the current portfolio ($w_{base}$) to the new optimal weights is constrained to ≤$\le 0.2%$ of total portfolio value **B**:
 
 $$
 \sum_{i \in I} |w_i - w_{base,i}| \cdot \left( \frac{B \cdot t_{cost,i}}{P_i} \right) \le 0.002 \cdot B
 $$
+
+Finally, there is an optional constraint for existing weights. This allows an investor to plug in an already held portfolio, and the optimization maintains a minimum level of weights based on the starting value.The optimization model then treats the inputted weights as minimum constraints when selecting the equities to fit to the set of inputted beta points — adjusting the other equities to compensate.$$\begin{aligned}
+w_i &\ge w_{i, \text{initial}} \quad \forall i \in I_{\text{existing}} \\
+\sum_{i \in I} w_i &= 1
+\end{aligned}$$
 
 ---
 
@@ -68,6 +73,7 @@ The bandit algorithm is currently set up as a recency-weighted walk-forward stra
 The bandit algorithm is built on a search, score, and adjust framework — a set of beta points are tried, scored by all five rewards, then based on the current objective being tested, adjusted to a new set of beta points.
 
 The inter-objective rewarding is structured this way to maximize computational efficiency, since all rewards are computed at each simulation. When the first objective is tested (i.e., Max Return), 150 beta combinations are tried. On each combination, the rewards for the other four objectives are also saved — so once the 150 Max Return iterations finish, the next objective (Volatility) already has 150 sample points to use as a decision base, seeding from whichever beta combination produced the best Volatility score.
+
 
 
 #### **Walk-Forward Structure**
@@ -83,6 +89,7 @@ $$
 The OOS return for October is saved, then all dates shift forward by one month — the new regression period becomes November 2022 – October 2025, optimizing for $t-4$ (November 2025). This continues until all five months are evaluated.
 
 The five return streams are then joined into a single dataframe and passed to the reward function.
+
 
 
 #### **Neighborhood Search**
@@ -102,6 +109,7 @@ $$
 is applied around the current best to encourage exploration beyond the immediate neighborhood.
 
 
+
 #### **Recency Weighting**
 
 The weighted aspect of the bandit is implemented as a recency bias. As more months are included via the walk-forward structure, older periods may reflect less relevant market regimes.
@@ -118,8 +126,10 @@ As for why five months rather than one or two — optimizing over a single recen
 ---
 
 ### **Streamlit UI**
-####  Input Sections
-** Input Sections
+
+####  User Interface
+
+The Streamlit User Interface is the front end of the optimazation and bandit algorithm system. It allows users to decide on what beta points to seta portfolio to, what and if any tickers to 
 
 
 
