@@ -26,7 +26,7 @@ price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
 
 st.title("Multi-Factor Investing")
 st.caption(
-    "Optimize portfolio weights to achieve target three Fama-French exposures from S&P 500 equity universe. "
+    "Optimize portfolio weights to achieve target three Fama-French exposures from S&P 500 equity universe. \n"
     "[ℹ️ Documentation](https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md)"
 )
 
@@ -283,7 +283,7 @@ def final_visuala(ddfs, expected_betas=None):
                 if expected_betas
                 else [[None, None, None]] * len(averaged_df)
             ),
-            hovertemplate="%{x|%b %Y}<br>Portfolio: $%{y:.3f}<br>β_mkt=%{customdata[0]}, β_smb=%{customdata[1]}, β_hml=%{customdata[2]}<extra></extra>",
+            hovertemplate="%{x|%b %Y}<br>Portfolio: $%{y:.3f}<br>β<sub>Mkt<sub>=%{customdata[0]}, β<sub>SMB<sub>=%{customdata[1]}, β<sub>HML<sub>=%{customdata[2]}<extra></extra>",
         )
     )
 
@@ -463,7 +463,18 @@ with col2:
         step=1,
         help="Number of Monte Carlo simulation runs"
     )
-st.divider()
+with col3:
+    max_runs = 25 if preset == "Custom" else 1
+    out_years = st.number_input(
+        "Testing Years",
+        min_value=1,
+        max_value=max_runs,
+        value=1,
+        step=1,
+        help="Number of years to see results for"
+    )
+st.caption("Each year of testing takes approximately 30–45 seconds to run.")
+    st.divider()
 
 # =============================================================================
 # OPTIMIZE BUTTON
@@ -586,7 +597,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                         target_hml,
                         end_sim,
                         3,
-                        1,
+                        out_years,
                         total_value,
                         "m",
                         sim_constrained,
@@ -596,7 +607,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                         spy_yoy_tickers1,
                         obj_key,
                     )
-                ) 
+                )
 
                 avg_drm = final_visuala(oos1_list, expected_betas)
                 # weights_port = rebalanced_optimal_weights_m(
@@ -618,7 +629,11 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             - Try without constrained holdings first to isolate the issue
             """
             )
-
+st.caption(
+    "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
+    "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. "
+    "Return streams do not account for short-term capital gains taxes or dividend reinvestment."
+)
 footer = """
 <style>
 .footer {

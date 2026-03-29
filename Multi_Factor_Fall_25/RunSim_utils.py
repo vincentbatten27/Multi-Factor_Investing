@@ -102,7 +102,6 @@ def extract_spy_data(df, start, end):
 
 # In[93]:
 
-
 def get_spy2(start, end, t1, rebal_freq):
     ### Get tickers + setup
     global tickers, spy
@@ -120,7 +119,7 @@ def get_spy2(start, end, t1, rebal_freq):
             (pd.datetime(t1) - relativedelta(years=1)).year, 2026
         )  # Universe selection year (currently max 2025)
     # ensure sp500 membership
-    new_monthly_data.index = pd.to_datetime(new_monthly_data.index)
+    # print(f'{spy_year1}:{spy_year2}')
     universe_year = spy_yoy_tickers.loc[str(spy_year1) : str(spy_year2)]
     if len(universe_year) > 0:
         candidate_universe = set(universe_year.iloc[0].dropna())
@@ -129,11 +128,16 @@ def get_spy2(start, end, t1, rebal_freq):
 
     candidate_universe = list(candidate_universe.intersection(new_monthly_data.columns))
     # ensure tickers are not NA in regression period (typically 3 years)
-    regression_window = new_monthly_data.loc[start:end, candidate_universe]
-    valid_tickers = regression_window.columns[
-        ~regression_window.isna().any(axis=0)
+    end_reg = str(pd.to_datetime(t1) + relativedelta(months=1))
+    ret_regression_window = new_monthly_data.loc[start:end_reg, candidate_universe]
+    valid_tickers_ret = ret_regression_window.columns[
+        ~ret_regression_window.isna().any(axis=0)
     ].tolist()
-
+    prc_regression_window = price_monthly_data.loc[start:end_reg, candidate_universe]
+    valid_tickers_prc = prc_regression_window.columns[
+        ~prc_regression_window.isna().any(axis=0)
+    ].tolist()
+    valid_tickers = list(set(valid_tickers_ret) & set(valid_tickers_prc))    
     tickers = valid_tickers
     ### Import the monthly data
     global monthly_data
@@ -151,7 +155,6 @@ def get_spy2(start, end, t1, rebal_freq):
 
     # Adjusting tickers list
     tickers = list(monthly_data.columns[:-1])
-
 
 # In[94]:
 
@@ -411,7 +414,8 @@ def optimization(c_portf):#new
         index += port + err[t] >= rhs
 
     # Transaction cost constraint (no per-ticker tr_cost vars)
-    index += lpSum(aux[i] * tc_coef[i] for i in I) <= 2000
+    max_tc = B * 0.002
+    index += lpSum(aux[i] * tc_coef[i] for i in I) <= max_tc
 
     # Limit # of stocks in portfolio
     for i in I:
@@ -538,7 +542,7 @@ def simulator(
     )  # ONLY HAVE THIS LINE OF CODE WHEN YOU ARE CONSTRUCTING THE PORTFOLIO FROM SCRATCH
 
     famafrenchreturns()
-    to_cal_stock_price(start, end)
+    to_cal_stock_price(start, final)
     Transaction_Costs()
     optimization(c_portf)
     others()
@@ -1258,22 +1262,28 @@ def new_run_with_backtest_mrebalance_front_end(
             expected_betas.append([betaA, betaB, betaC])
             budget = budget * prev_month_perf
             t1 = start_date11
-            simulator(
-                betaA,
-                betaB,
-                betaC,
-                n_year_before_updated,
-                n_year_after_updated,
-                budget,
-                50,
-                None,
-                t1,
-                rebal_freq,
-            )
-            rebalance_opt_weights.append(opt_portf_weights)
-
-            mperformance = out_of_sampless(start_date11, end_date1).copy()
-            snipped_perf = mperformance.iloc[1]
+            for attempt in range(3):
+                try:
+                    simulator(
+                        betaA,
+                        betaB,
+                        betaC,
+                        n_year_before_updated,
+                        n_year_after_updated,
+                        budget,
+                        50,
+                        None,
+                        t1,
+                        rebal_freq,
+                    )
+                    rebalance_opt_weights.append(opt_portf_weights)
+                    mperformance = out_of_sampless(start_date11, end_date1).copy()
+                    snipped_perf = mperformance.iloc[1]
+                    break
+                except IndexError:
+                    if attempt == 2:
+                        raise
+   
             if k == 0:
                 first_perf = mperformance.iloc[0]
                 noos1_new_performance = pd.concat(
