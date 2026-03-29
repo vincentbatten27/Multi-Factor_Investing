@@ -196,7 +196,7 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 
 ---
 
-## 👤 Authors
+# 👤 Authors
 
 **Johanan Anton Pranesh**  
 *M.S. Financial Engineering '25, Lehigh University*  
@@ -207,7 +207,7 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 *B.S. Finance '26 (Data Science and Probaility & Stat minors), Lehigh University*  
 *Investment Managment | Data Science*                  
 [LinkedIn](https://www.linkedin.com/in/vincentbatten27/) • [Email](mailto:vincentbatten27@gmail.com)
-# Other Contributors
+## Other Contributors
 
 **Kshitij Bhandari**  
 *M.S. Financial Engineering '26, Lehigh University*  
@@ -215,7 +215,7 @@ MIT License. Feel free to use, extend, and build upon this research framework. C
 **Nate Songstad**  
 *M.S. Financial Engineering '27, Lehigh University*  
 
-# Former Contributors
+## Former Contributors
 **Shisheng Liang**  
 *M.S. Financial Engineering'25, Lehigh University*  
 
