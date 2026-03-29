@@ -27,7 +27,8 @@ price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
 st.title("Multi-Factor Investing")
 st.caption(
     "Optimize portfolio weights to achieve target three Fama-French exposures from S&P 500 equity universe.<br>"
-    "[ℹ️ Documentation](https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md)"
+    "[ℹ️ Documentation](https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md)",
+    unsafe_allow_html=True
 )
 
 # =============================================================================
