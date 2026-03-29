@@ -26,75 +26,8 @@ price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
 
 st.title("Multi-Factor Investing")
 st.caption(
-    "Optimize portfolio weights to achieve target three fama-french exposures from S&P 500 equity universe."
-)
-
-modal_content = """
-## Multi-Factor Portfolio Optimizer
-
-This tool constructs equity portfolios targeting specific **Fama-French 3-Factor** exposures —
-Market (MKT), Size (SMB), and Value (HML) — using Linear Programming Tracking Error Minimization
-over the S&P 500 universe.
-
-**How it works:**
-- Input a target beta combination or select a preset optimized by the adaptive bandit algorithm
-- The LP optimizer finds a portfolio of up to 50 stocks that minimizes deviation from your FF3 targets
-- The Monte Carlo simulation shows walk-forward historical performance with monthly rebalancing
-- Presets (Max Return, Min Vol, etc.) dynamically pull the current month's bandit-optimized betas
-
-**Optimization objectives:** Max Return · Sharpe · Sortino · Min Volatility · Min Downside Volatility
-
-[📄 View Full README on GitHub](https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md)
-"""
-
-st.components.v1.html(
-    f"""
-<style>
-  .info-btn {{
-    background: none; border: none; cursor: pointer;
-    font-size: 22px; vertical-align: middle; padding: 0;
-  }}
-  .modal-overlay {{
-    display: none; position: fixed; top: 0; left: 0;
-    width: 100%; height: 100%; background: rgba(0,0,0,0.5);
-    z-index: 9999; justify-content: center; align-items: center;
-  }}
-  .modal-box {{
-    background: white; border-radius: 10px; padding: 30px;
-    max-width: 600px; width: 90%; position: relative;
-    max-height: 80vh; overflow-y: auto;
-    font-family: sans-serif; color: #333;
-  }}
-  .close-btn {{
-    position: absolute; top: 12px; right: 16px;
-    background: none; border: none; font-size: 22px;
-    cursor: pointer; color: #666;
-  }}
-  .close-btn:hover {{ color: #000; }}
-</style>
-
-<button class="info-btn" onclick="document.getElementById('infoModal').style.display='flex'">ℹ️</button>
-
-<div id="infoModal" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal-box">
-    <button class="close-btn" onclick="document.getElementById('infoModal').style.display='none'">✕</button>
-    <h2>Multi-Factor Portfolio Optimizer</h2>
-    <p>This tool constructs equity portfolios targeting specific <strong>Fama-French 3-Factor</strong> exposures —
-    Market (MKT), Size (SMB), and Value (HML) — using Linear Programming Tracking Error Minimization
-    over the S&P 500 universe.</p>
-    <p><strong>How it works:</strong></p>
-    <ul>
-      <li>Input a target beta combination or select a preset optimized by the adaptive bandit algorithm</li>
-      <li>The LP optimizer finds a portfolio of up to 50 stocks that minimizes deviation from your FF3 targets</li>
-      <li>The Monte Carlo simulation shows walk-forward historical performance with monthly rebalancing</li>
-      <li>Presets dynamically pull the current month's bandit-optimized betas</li>
-    </ul>
-    <p><strong>Optimization objectives:</strong> Max Return · Sharpe · Sortino · Min Volatility · Min Downside Volatility</p>
-    <p><a href="https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md" target="_blank">📄 View Full README on GitHub</a></p>
-  </div>
-</div>
-""",
-    height=50,
+    "Optimize portfolio weights to achieve target three Fama-French exposures from S&P 500 equity universe. "
+    "[ℹ️ Documentation](https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md)"
 )
 
 # =============================================================================
