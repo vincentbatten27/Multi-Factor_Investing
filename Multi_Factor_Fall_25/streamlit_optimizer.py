@@ -189,7 +189,7 @@ st.divider()
 # OPTIMIZATION FUNCTION
 # =============================================================================
 
-def final_visuala(ddfs, expected_betas=None, obj):
+def final_visuala(ddfs, expected_betas=None, obj=None):
     import plotly.graph_objects as go
 
     concatenated_df = pd.concat(ddfs, axis=1)
