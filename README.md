@@ -58,6 +58,7 @@ $$
 $$
 
 Finally, there is an optional constraint for existing weights. This allows an investor to plug in an already held portfolio, and the optimization maintains a minimum level of weights based on the starting value.The optimization model then treats the inputted weights as minimum constraints when selecting the equities to fit to the set of inputted beta points — adjusting the other equities to compensate.
+
 $$
 \begin{aligned}
 w_i &\ge w_{i, \text{initial}} \quad \forall i \in I_{\text{existing}} \\
