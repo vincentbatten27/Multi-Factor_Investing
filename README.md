@@ -200,6 +200,8 @@ Multi_Factor_25_26/
 MIT License. Feel free to use, extend, and build upon this research framework. Contributions welcome.
 
 
+Data is sourced from WRDS, Stooq, and Alpha Vantage.
+
 ---
 
 
