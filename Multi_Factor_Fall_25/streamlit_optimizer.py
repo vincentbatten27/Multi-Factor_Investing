@@ -166,13 +166,13 @@ PRESET_TO_OBJ = {
 if preset == "Custom":
     col1, col2, col3 = st.columns(3)
     with col1:
-        target_mkt = st.number_input("MKT (Market)", value=1.0, step=0.1, format="%.2f",
+        target_mkt = st.number_input("MKT (Market)",min_value = 0.5, max_value = 1.5, value=1.0, step=0.1, format="%.2f",
             help="Market exposure (typically around 1.0)")
     with col2:
-        target_smb = st.number_input("SMB (Size)", value=0.0, step=0.1, format="%.2f",
+        target_smb = st.number_input("SMB (Size)", min_value = -1.0, max_value = 1.0, value = 0.0, step=0.1, format="%.2f",
             help="Small minus Big (positive = small cap tilt)")
     with col3:
-        target_hml = st.number_input("HML (Value)", value=0.0, step=0.1, format="%.2f",
+        target_hml = st.number_input("HML (Value)", min_value = -1.0, max_value = 1.0,  value=0.0, step=0.1, format="%.2f",
             help="High minus Low (positive = value tilt)")
     obj_key = None
 else:
