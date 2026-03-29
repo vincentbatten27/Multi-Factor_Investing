@@ -363,11 +363,7 @@ def final_visuala(ddfs, expected_betas=None):
         ),
         width="stretch",
     )
-    st.caption(
-        "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
-        "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. "
-        "Return streams do not account for short-term capital gains taxes or dividend reinvestment."
-    )
+
 
     return averaged_df
 
@@ -506,7 +502,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             st.success(
                 f"Optimization Complete — using data as of **{target_date.strftime('%B %Y')}**. Results Below:"
             )
-
+            st.info("Scroll down to view Historical Monte Carlo Simulation and performance metrics.")
             with st.expander("Debug: Data returned from optimizer"):
                 st.write(f"**Shape:** {results_df.shape}")
                 st.write(f"**Columns:** {results_df.columns.tolist()}")
@@ -619,6 +615,13 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # weights_port = rebalanced_optimal_weights_m(
                 #     oos1_list[0], rebalance_opt_weights, price_monthly_data
                 # )
+                st.caption(
+                "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
+                "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. <br>"
+                "Return streams do not account for short-term capital gains taxes or dividend reinvestment.",
+                unsafe_allow_html=True
+    )
+
         except Exception as e:
             st.error("Optimization failed!")
             st.error(f"**Error:** {str(e)}")
