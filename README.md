@@ -124,6 +124,7 @@ As for why five months rather than one or two — optimizing over a single recen
 ### **Streamlit UI**
 [Live Demo - Multi-Factor Investing App](https://multi-factor-investing.streamlit.app)
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://multi-factor-investing.streamlit.app/#summary-of-inputs)
 
 ####  User Interface
 
@@ -142,6 +143,9 @@ Each preset (Max Return, Min Volatility, etc.) is populated dynamically from the
 - **Simulation**: Custom Monte Carlo with bootstrapping
 - **ML/Algo**: ε-decaying bandit algorithm with multi-reward configuration
 - **Optimization**: MILP with constraints on exposure, cardinality, and transaction cost
+
+
+---
 
 <!-- ## 📁 Project Structure -->
 
@@ -189,12 +193,16 @@ Multi_Factor_25_26/
 └── Useless_csvs/                 # Deprecated or scratch output files
 ```
 
+
 ---
+
 
 ## License 
 MIT License. Feel free to use, extend, and build upon this research framework. Contributions welcome.
 
+
 ---
+
 
 # 👤 Authors
 
