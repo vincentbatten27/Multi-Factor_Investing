@@ -1,5 +1,5 @@
 
-# MultiFactor Investing 
+# Multi-Factor Investing 
 
 This repository contains the full implementation and research framework for an adaptive multifactor investing strategy, orignally developed as part of a financial engineering capstone. The goal of this project is to leverage simulation-based learning algorithms to achieve five different optimazation goals: Returns, Volatility, Downside Volatility, Sharpe, and Sortino.
 
@@ -122,9 +122,8 @@ As for why five months rather than one or two — optimizing over a single recen
 ---
 
 ### **Streamlit UI**
-[Live Demo - Multi-Factor Investing App](https://multi-factor-investing.streamlit.app)
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://multi-factor-investing.streamlit.app/#summary-of-inputs)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://multi-factor-investing.streamlit.app/)
 
 ####  User Interface
 
