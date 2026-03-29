@@ -473,8 +473,9 @@ with col3:
         step=1,
         help="Number of years to see results for"
     )
+    
 st.caption("Each year of testing takes approximately 30–45 seconds to run.")
-    st.divider()
+st.divider()
 
 # =============================================================================
 # OPTIMIZE BUTTON
