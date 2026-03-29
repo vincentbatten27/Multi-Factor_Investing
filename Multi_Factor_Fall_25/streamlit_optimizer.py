@@ -60,7 +60,7 @@ if "holdings" not in st.session_state:
 if "input_counter" not in st.session_state:
     st.session_state.input_counter = 0
 
-col1, col2, col3 = st.columns([2, 2, 1])
+col1, col2, col3= st.columns([2, 2, 1])
 
 with col1:
     new_ticker = st.text_input(
@@ -445,7 +445,7 @@ st.divider()
 # =============================================================================
 st.subheader("Simulation Options")
 
-col1, col2,col3 = st.columns([2, 2])
+col1, col2,col3 = st.columns([3,1,1])
 
 with col1:
     use_constrained_sim = st.toggle(
