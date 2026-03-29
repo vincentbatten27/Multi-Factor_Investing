@@ -45,9 +45,8 @@ The number of equities being slected is limited to $q$ by a binay decision varia
 
 $$
 \begin{aligned}
-\sum w_i &= 1.0 \\
-w_i &\le z_i, \quad \forall i \in I \\
-\sum z_i &\le q, \quad z_i \in {0, 1}
+w_i &\ge w_{i,\text{initial}} \quad \forall i \in I_{\text{existing}} \\
+\sum_{i \in I} w_i &= 1
 \end{aligned}
 $$
 
