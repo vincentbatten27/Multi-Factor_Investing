@@ -445,7 +445,7 @@ st.divider()
 # =============================================================================
 st.subheader("Simulation Options")
 
-col1, col2,col3 = st.columns([3,1,1])
+col1, col2 = st.columns([3,1])
 
 with col1:
     use_constrained_sim = st.toggle(
@@ -453,6 +453,15 @@ with col1:
         value=True,
         disabled=(len(st.session_state.holdings) == 0) or (preset != "Custom"),
         help="If off, simulation runs without locked positions \nSelecting Optimized Beta will automatically override and exclude any Custom Constrained Holdings",
+    )
+    max_runs = 25 if preset == "Custom" else 1
+    out_years = st.number_input(
+        "Testing Years",
+        min_value=1,
+        max_value=max_runs,
+        value=1,
+        step=1,
+        help="Number of years to see results for",
     )
 
 with col2:
@@ -463,16 +472,6 @@ with col2:
         value=1,
         step=1,
         help="Number of Monte Carlo simulation runs"
-    )
-with col3:
-    max_runs = 25 if preset == "Custom" else 1
-    out_years = st.number_input(
-        "Testing Years",
-        min_value=1,
-        max_value=max_runs,
-        value=1,
-        step=1,
-        help="Number of years to see results for"
     )
 
 st.caption("Each year of testing takes approximately 30–45 seconds to run.")
