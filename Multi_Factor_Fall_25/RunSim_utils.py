@@ -105,7 +105,7 @@ def extract_spy_data(df, start, end):
 def get_spy2(start, end, t1, rebal_freq, c_portf):
     ### Get tickers + setup
     global tickers, spy
-    
+
     new_seed = np.random.randint(0, 1_000_000_000, dtype=int)
     np.random.seed(new_seed)
     random.seed(int(new_seed))
@@ -353,7 +353,7 @@ def extract_weights(c_portf):
 def noise_adjustmnet(tickers, seed,c_portf):
 
     rng = np.random.default_rng(seed)
-    n_keep = round(len(tickers) * (13/16))
+    n_keep = round(len(tickers) * (23/25))
     array_t = rng.choice(tickers, size= n_keep, replace=False)
     if c_portf is not None:
         must_hold = list(c_portf["Ticker"])
