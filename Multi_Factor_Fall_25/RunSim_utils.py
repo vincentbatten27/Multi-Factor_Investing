@@ -105,6 +105,10 @@ def extract_spy_data(df, start, end):
 def get_spy2(start, end, t1, rebal_freq, c_portf):
     ### Get tickers + setup
     global tickers, spy
+    
+    new_seed = np.random.randint(0, 1_000_000_000, dtype=int)
+    np.random.seed(new_seed)
+    random.seed(int(new_seed))
 
     new_monthly_data1 = new_monthly_data.copy()
     new_monthly_data1.index = pd.to_datetime(new_monthly_data1.index)
@@ -363,9 +367,6 @@ def noise_adjustmnet(tickers, seed,c_portf):
 
 def optimization(c_portf):#new
     
-    new_seed = np.random.randint(0, 1_000_000_000, dtype=int)
-    np.random.seed(new_seed)
-    random.seed(int(new_seed))
 
     global index, wei, aux, err, binary
     if c_portf is not None : # if we arent sending None, then this runs
