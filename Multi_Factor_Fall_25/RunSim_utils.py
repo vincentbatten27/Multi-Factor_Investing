@@ -102,7 +102,7 @@ def extract_spy_data(df, start, end):
 
 # In[93]:
 
-def get_spy2(start, end, t1, rebal_freq):
+def get_spy2(start, end, t1, rebal_freq, c_portf):
     ### Get tickers + setup
     global tickers, spy
 
@@ -138,7 +138,7 @@ def get_spy2(start, end, t1, rebal_freq):
         ~prc_regression_window.isna().any(axis=0)
     ].tolist()
     valid_tickers = list(set(valid_tickers_ret) & set(valid_tickers_prc))    
-    tickers = valid_tickers
+    tickers =  noise_adjustmnet(valid_tickers,new_seed, c_portf)
     ### Import the monthly data
     global monthly_data
     global base_w
@@ -346,6 +346,20 @@ def extract_weights(c_portf):
 
 # In[100]:
 
+def noise_adjustmnet(tickers, seed,c_portf):
+
+    rng = np.random.default_rng(seed)
+    n_keep = round(len(tickers) * (13/16))
+    array_t = rng.choice(tickers, size= n_keep, replace=False)
+    if c_portf is not None:
+        must_hold = list(c_portf["Ticker"])
+        tickers = list(set(list(array_t) + must_hold ))
+    else:
+        tickers = list(array_t)
+    # print(f'Check : {len(tickers)}')
+    
+    return tickers
+
 
 def optimization(c_portf):#new
     
@@ -519,7 +533,7 @@ def simulator(
     end = final
     global mkt_bet, smb_bet, hml_bet
     mkt_bet, smb_bet, hml_bet = [], [], []
-    get_spy2(start, end, t1, rebal_freq)
+    get_spy2(start, end, t1, rebal_freq,c_portf)
     # Adjusting tickers list as some tickers will not be included in the monthly_data if there is no data for test date range
     global tickers
     tickers = list(monthly_data.columns[:-1])
