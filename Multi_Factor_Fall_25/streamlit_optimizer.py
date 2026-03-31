@@ -424,7 +424,7 @@ with col1:
         disabled=(len(st.session_state.holdings) == 0) or (preset != "Custom"),
         help="If off, simulation runs without locked positions \nSelecting Optimized Beta will automatically override and exclude any Custom Constrained Holdings",
     )
-    max_runs = 25 if preset == "Custom" else 1
+    max_runs = 25 if preset == "Custom" else 2
     out_years = st.number_input(
         "Testing Years",
         min_value=1,

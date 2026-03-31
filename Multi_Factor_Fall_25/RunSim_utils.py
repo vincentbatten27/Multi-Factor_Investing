@@ -1264,7 +1264,7 @@ def new_run_with_backtest_mrebalance_front_end(
             )
 
             try:
-                path = f"Front_End_Strategies_Iteration_2/{obj_key}/rebal_explored_{obj_key}_active_{(pd.to_datetime(n_year_after_updated)+ pd.offsets.MonthEnd(0)).date()}.csv"
+                path = f"Front_End_Strategies_Iteration_2b/{obj_key}/rebal_explored_{obj_key}_active_{(pd.to_datetime(n_year_after_updated)+ pd.offsets.MonthEnd(0)).date()}.csv"
                 curr_df = pd.read_csv(SCRIPT_DIR / path)
             except FileNotFoundError:
 
