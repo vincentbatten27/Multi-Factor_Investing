@@ -133,11 +133,8 @@ def get_betas():
         base_path = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(base_path,f"Front_End_Strategies_Iteration_3/{obj}/rebal_explored_{obj}_active_{weights_opt_d.strftime('%Y-%m-%d')}.csv")
         df = pd.read_csv(path)
-        curr_df = df.sort_values(by="reward")
-        betaA = curr_df.iloc[-1][0]
-        betaB = curr_df.iloc[-1][1]
-        betaC = curr_df.iloc[-1][2]
-        betas[obj] = [betaA, betaB, betaC]
+        best = df.nlargest(1, 'reward').iloc[0]
+        betas[obj] = [best['c1'], best['c2'], best['c3']]
 
     return betas
 
