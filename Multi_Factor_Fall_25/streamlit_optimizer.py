@@ -122,7 +122,7 @@ def get_betas():
     betas = {}
 
     today = pd.Timestamp.now()
-    target_date = today.replace(day=1)
+    #target_date = today.replace(day=1)
     target_date = target_date.normalize()
     curr_weights = target_date.date()
     weights_opt_d = curr_weights - relativedelta(days=1)
