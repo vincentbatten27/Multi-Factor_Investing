@@ -1251,10 +1251,10 @@ def new_run_with_backtest_mrebalance_front_end(
 
         if rebal_freq == "drm":
             n_year_before_updated = str(
-                pd.to_datetime(n_year_before) + relativedelta(months=k)
+                pd.to_datetime(n_year_before) + relativedelta(months=k+1) # delete the + 1 if iteration is not 3
             )
             n_year_after_updated = str(
-                pd.to_datetime(n_year_after) + relativedelta(months=k)
+                pd.to_datetime(n_year_after) + relativedelta(months=k+1) # delete the + 1 if iteration is not 3
             )
             start_date11 = str(
                 pd.to_datetime(n_year_before_updated) + relativedelta(months=36)
@@ -1264,7 +1264,7 @@ def new_run_with_backtest_mrebalance_front_end(
             )
 
             try:
-                path = f"Front_End_Strategies_Iteration_2b/{obj_key}/rebal_explored_{obj_key}_active_{(pd.to_datetime(n_year_after_updated)+ pd.offsets.MonthEnd(0)).date()}.csv"
+                path = f"Front_End_Strategies_Iteration_3/{obj_key}/rebal_explored_{obj_key}_active_{(pd.to_datetime(n_year_after_updated)+ pd.offsets.MonthEnd(0)).date()}.csv"
                 curr_df = pd.read_csv(SCRIPT_DIR / path)
             except FileNotFoundError:
 

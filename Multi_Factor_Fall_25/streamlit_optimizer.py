@@ -129,7 +129,7 @@ def get_betas():
 
     for obj in OBJECTIVES:
         base_path = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(base_path,f"Front_End_Strategies_Iteration_2b/{obj}/rebal_explored_{obj}_active_{weights_opt_d.strftime('%Y-%m-%d')}.csv")
+        path = os.path.join(base_path,f"Front_End_Strategies_Iteration_3/{obj}/rebal_explored_{obj}_active_{weights_opt_d.strftime('%Y-%m-%d')}.csv")
         df = pd.read_csv(path)
         curr_df = df.sort_values(by="reward")
         betaA = curr_df.iloc[-1][0]
