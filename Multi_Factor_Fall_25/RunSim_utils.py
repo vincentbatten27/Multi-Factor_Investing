@@ -1269,10 +1269,8 @@ def new_run_with_backtest_mrebalance_front_end(
             except FileNotFoundError:
 
                 print("File DNE")
-            curr_df = curr_df.sort_values(by="reward")
-            betaA = curr_df.iloc[-1][0]
-            betaB = curr_df.iloc[-1][1]
-            betaC = curr_df.iloc[-1][2]
+            best = curr_df.nlargest(1, 'reward').iloc[0]
+            betaA,betaB,betaC = [best['c1'], best['c2'], best['c3']]
 
             expected_betas.append([betaA, betaB, betaC])
             budget = budget * prev_month_perf
