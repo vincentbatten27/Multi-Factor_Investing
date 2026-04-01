@@ -85,8 +85,8 @@ def extract_stock_data(df, tdickers, start, end):
                 print()
                # print(f"Column '{col}' could not be converted to float.")
     df_selected.interpolate(method='linear',inplace=True)
-    df_selected = df_selected.fillna(method='ffill')
-    df_selected = df_selected.fillna(method='bfill')
+    df_selected = df_selected.ffill()
+    df_selected = df_selected.bfill()
     return df_selected
 
 
@@ -1195,7 +1195,7 @@ def new_run_with_backtest_mrebalance_front_end(
     global expected_betas
     expected_betas = []
     budget = starting_budget
-    for k in range(os_months):
+    for k in range(os_months -1 ):#DELETE AFTER
 
         # so base is above, and then first step is to grab the performance of January 2020 (assuming standard run)
         # to add to noos1_perf and to update budget'
