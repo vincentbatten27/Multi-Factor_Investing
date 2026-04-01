@@ -120,9 +120,12 @@ st.divider()
 def get_betas():
     OBJECTIVES = ["max_return", "sharpe", "sortino", "volatility", "downside_vol"]
     betas = {}
-
     today = pd.Timestamp.now()
-    target_date = today.normalize()
+    if today.day >= 2:
+        target_date = today.replace(day=1)
+    else:
+        target_date = (today - pd.DateOffset(months=1)).replace(day=1)
+    target_date = target_date.normalize()
     curr_weights = target_date.date()
     weights_opt_d = curr_weights - relativedelta(days=1)
 
