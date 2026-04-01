@@ -392,7 +392,7 @@ def optimization(c_portf):#new
     # Base weights and transaction-cost coefficients
     # base_weights[i] must be indexable by ticker
     print(base_weights.index[base_weights.index.duplicated()])
-    base_weights = base_weights[~base_weights.index.duplicated(keep='first'))
+    base_weights = base_weights[~base_weights.index.duplicated(keep='first')]
     base = {i: float(base_weights[i]) for i in I}
     # transaction cost coefficient per unit aux:
     # aux[i] * B * t_cost[i] / s_price[i]
