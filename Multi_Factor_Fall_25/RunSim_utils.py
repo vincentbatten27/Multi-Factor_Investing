@@ -1807,18 +1807,25 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
     return results,yearly_returns,averages, expected_betas, rebalance_opt_weights
 # In[135]:
 
-def get_premade_mrebalance_front_end(os_years, obj,num_iteration):
+def get_premade_rebalance_front_end(os_years, obj, num_iteration):
     results = []
+    expected_betas = []
 
     for i in range(num_iteration):
         path = SCRIPT_DIR / f"Front_End_Strategies_Iteration_3/pre_drm_2025_{obj}_run{i+1}.csv"
-        df = pd.read_csv(path,
-            index_col=0,
-            parse_dates=True,
-        )
-        df = df.iloc[-(os_years*12):]
+        df = pd.read_csv(path, index_col=0, parse_dates=True)
+        df = df.iloc[-(os_years * 12):]
         results.append(df)
-    return results
+
+    # Build expected_betas from first run's index (all runs share same dates)
+    for date in results[0].index:
+        file_date = (date - pd.DateOffset(days=1)).strftime('%Y-%m-%d')
+        rebal_path = SCRIPT_DIR / f"Front_End_Strategies_Iteration_3/{obj}/rebal_explored_{obj}_active_{file_date}.csv"
+        rebal_df = pd.read_csv(rebal_path)
+        best = rebal_df.nlargest(1, 'reward').iloc[0]
+        expected_betas.append([best['c1'], best['c2'], best['c3']])
+
+    return results, None, None, expected_betas, None
 
 
 def expand_performance2(df):
