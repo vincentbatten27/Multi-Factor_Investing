@@ -1263,8 +1263,7 @@ def new_run_with_backtest_mrebalance_front_end(
             )
 
             try:
-                #path = f"Front_End_Strategies_Iteration_3/{obj_key}/rebal_explored_{obj_key}_active_{(pd.to_datetime(n_year_after_updated)+ pd.offsets.MonthEnd(0)).date()}.csv"
-                 path = f"Front_End_Strategies_Iteration_3/raw_downside_vol/rebal_explored_raw_downside_vol_active_{(pd.to_datetime(n_year_after_updated)+ pd.offsets.MonthEnd(0)).date()}.csv"
+                path = f"Front_End_Strategies_Iteration_3/{obj_key}/rebal_explored_{obj_key}_active_{(pd.to_datetime(n_year_after_updated)+ pd.offsets.MonthEnd(0)).date()}.csv"
                 curr_df = pd.read_csv(SCRIPT_DIR / path)
             except FileNotFoundError:
 
@@ -1781,18 +1780,23 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
             if(rebal_freq == 'cv'):
                 oos1_new_performance = new_run_with_backtest_rebalance_cv(in_years1,out_years,mbetaA,mbetaB,mbetaC,'drm')
         else:
-            oos1_new_performance = new_run_with_backtest_mrebalance_front_end(
-                type,
-                in_years1,
-                out_years,
-                mbetaA,
-                mbetaB,
-                mbetaC,
-                starting_budget,
-                rebal_freq,
-                c_portf,
-                obj_key
-            )
+            if rebal_freq == 'drm':
+                oos1_new_performance = new_run_with_backtest_mrebalance_front_end(
+                    type,
+                    in_years1,
+                    out_years,
+                    mbetaA,
+                    mbetaB,
+                    mbetaC,
+                    starting_budget,
+                    rebal_freq,
+                    c_portf,
+                    obj_key
+                )
+            elif rebal_freq == 'pre_drm':
+                oos1_new_performance = get_premade_mrebalance_front_end(
+                out_years, obj_key,n_simulations
+                )
         globals()[f'x{i}_df']=oos1_new_performance.copy()
         globals()[f'y{i}_df']=new_performances.copy()
         results.append(globals()[f'x{i}_df'])
@@ -1807,7 +1811,20 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
     return results,yearly_returns,averages, expected_betas, rebalance_opt_weights
 # In[135]:
 
+def get_premade_mrebalance_front_end(os_years, obj,num_iteration):
+    results = []
 
+    for i in range(num_iteration):
+        df = pd.read_csv(
+            f"Front_End_Strategies_Iteration_3/pre_drm_2025_{obj}_run{i+1}.csv",
+            index_col=0,
+            parse_dates=True,
+        )
+        df = df.iloc[-(os_years*12):]
+        results.append(df)
+    return results
+
+    
 def expand_performance2(df):
     # Initialize the list with the first dataframe
     dflist = [df]

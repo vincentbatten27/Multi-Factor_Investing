@@ -3,24 +3,26 @@ import pandas as pd
 from RunSim_utils import *
 import os
 
+
 @st.cache_data
 def load_data():
     base_path = os.path.dirname(os.path.abspath(__file__))
-    
-    price_monthly_data = pd.read_csv(os.path.join(base_path, 'monthly_prices.csv'))
-    price_monthly_data.columns.name = 'Ticker'
-    price_monthly_data['Date'] = pd.to_datetime(price_monthly_data['Date'])
-    price_monthly_data = price_monthly_data.set_index('Date')
 
-    new_monthly_data = pd.read_csv(os.path.join(base_path, 'monthly_returns.csv'))
-    new_monthly_data.columns.name = 'Ticker'
-    new_monthly_data['Date'] = pd.to_datetime(new_monthly_data['Date'])
-    new_monthly_data = new_monthly_data.set_index('Date')
-    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors='coerce')
+    price_monthly_data = pd.read_csv(os.path.join(base_path, "monthly_prices.csv"))
+    price_monthly_data.columns.name = "Ticker"
+    price_monthly_data["Date"] = pd.to_datetime(price_monthly_data["Date"])
+    price_monthly_data = price_monthly_data.set_index("Date")
+
+    new_monthly_data = pd.read_csv(os.path.join(base_path, "monthly_returns.csv"))
+    new_monthly_data.columns.name = "Ticker"
+    new_monthly_data["Date"] = pd.to_datetime(new_monthly_data["Date"])
+    new_monthly_data = new_monthly_data.set_index("Date")
+    new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors="coerce")
 
     indexgspc1, spy_yoy_tickers1 = run_sp500_data()
 
     return price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1
+
 
 price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
 
@@ -28,7 +30,7 @@ st.title("Multi-Factor Investing")
 st.caption(
     "Optimize portfolio weights to achieve target three Fama-French exposures from S&P 500 equity universe.<br>"
     "[ℹ️ Documentation](https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md)",
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 # =============================================================================
@@ -60,34 +62,66 @@ if "holdings" not in st.session_state:
 if "input_counter" not in st.session_state:
     st.session_state.input_counter = 0
 
-col1, col2, col3= st.columns([2, 2, 1])
+input_method = st.radio("Input method", ["Manual entry", "Upload CSV"], horizontal=True)
 
-with col1:
-    new_ticker = st.text_input(
-        "Ticker",
-        placeholder="e.g., AAPL",
-        key=f"new_ticker_{st.session_state.input_counter}",
+if input_method == "Upload CSV":
+    sample_csv = "Ticker,Value\nAAPL,50000\nMSFT,30000\nTSLA,20000"
+    st.download_button(
+        "📥 Download Sample CSV Template",
+        data=sample_csv,
+        file_name="holdings_template.csv",
+        mime="text/csv",
     )
-with col2:
-    new_value = st.number_input(
-        "Value ($)",
-        min_value=0.0,
-        value=None,
-        placeholder="e.g., 10000",
-        step=1000.0,
-        format="%.2f",
-        key=f"new_value_{st.session_state.input_counter}",
-    )
-with col3:
-    st.write("")
-    st.write("")
-    if st.button("➕ Add"):
-        if new_ticker and new_value and new_value > 0:
-            st.session_state.holdings.append(
-                {"Ticker": new_ticker.upper().strip(), "Value": new_value}
-            )
-            st.session_state.input_counter += 1
-            st.rerun()
+    uploaded_file = st.file_uploader("Upload Holdings CSV", type=["csv"])
+    if uploaded_file is not None:
+        try:
+            uploaded_df = pd.read_csv(uploaded_file)
+            if (
+                "Ticker" not in uploaded_df.columns
+                or "Value" not in uploaded_df.columns
+            ):
+                st.error("CSV must have 'Ticker' and 'Value' columns!")
+            else:
+                uploaded_df["Ticker"] = uploaded_df["Ticker"].str.upper().str.strip()
+                uploaded_df["Value"] = pd.to_numeric(
+                    uploaded_df["Value"], errors="coerce"
+                )
+                uploaded_df = uploaded_df.dropna()
+                st.session_state.holdings = uploaded_df.to_dict("records")
+                st.success(f"✅ Loaded {len(st.session_state.holdings)} holdings")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Error reading CSV: {str(e)}")
+
+else:
+    col1, col2, col3 = st.columns([2, 2, 1])
+
+    with col1:
+        new_ticker = st.text_input(
+            "Ticker",
+            placeholder="e.g., AAPL",
+            key=f"new_ticker_{st.session_state.input_counter}",
+        )
+    with col2:
+        new_value = st.number_input(
+            "Value ($)",
+            min_value=0.0,
+            value=None,
+            placeholder="e.g., 10000",
+            step=1000.0,
+            format="%.2f",
+            key=f"new_value_{st.session_state.input_counter}",
+        )
+    with col3:
+        st.write("")
+        st.write("")
+        if st.button("➕ Add"):
+            if new_ticker and new_value and new_value > 0:
+                st.session_state.holdings.append(
+                    {"Ticker": new_ticker.upper().strip(), "Value": new_value}
+                )
+                st.session_state.input_counter += 1
+                st.rerun()
 
 if st.session_state.holdings:
     holdings_df = pd.DataFrame(st.session_state.holdings)
@@ -131,10 +165,13 @@ def get_betas():
 
     for obj in OBJECTIVES:
         base_path = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(base_path,f"Front_End_Strategies_Iteration_3/{obj}/rebal_explored_{obj}_active_{weights_opt_d.strftime('%Y-%m-%d')}.csv")
+        path = os.path.join(
+            base_path,
+            f"Front_End_Strategies_Iteration_3/{obj}/rebal_explored_{obj}_active_{weights_opt_d.strftime('%Y-%m-%d')}.csv",
+        )
         df = pd.read_csv(path)
-        best = df.nlargest(1, 'reward').iloc[0]
-        betas[obj] = [best['c1'], best['c2'], best['c3']]
+        best = df.nlargest(1, "reward").iloc[0]
+        betas[obj] = [best["c1"], best["c2"], best["c3"]]
 
     return betas
 
@@ -165,18 +202,41 @@ PRESET_TO_OBJ = {
 if preset == "Custom":
     col1, col2, col3 = st.columns(3)
     with col1:
-        target_mkt = st.number_input("MKT (Market)",min_value = 0.5, max_value = 1.5, value=1.0, step=0.1, format="%.2f",
-            help="Market exposure (typically around 1.0)")
+        target_mkt = st.number_input(
+            "MKT (Market)",
+            min_value=0.5,
+            max_value=1.5,
+            value=1.0,
+            step=0.1,
+            format="%.2f",
+            help="Market exposure (typically around 1.0)",
+        )
     with col2:
-        target_smb = st.number_input("SMB (Size)", min_value = -1.0, max_value = 1.0, value = 0.0, step=0.1, format="%.2f",
-            help="Small minus Big (positive = small cap tilt)")
+        target_smb = st.number_input(
+            "SMB (Size)",
+            min_value=-1.0,
+            max_value=1.0,
+            value=0.0,
+            step=0.1,
+            format="%.2f",
+            help="Small minus Big (positive = small cap tilt)",
+        )
     with col3:
-        target_hml = st.number_input("HML (Value)", min_value = -1.0, max_value = 1.0,  value=0.0, step=0.1, format="%.2f",
-            help="High minus Low (positive = value tilt)")
+        target_hml = st.number_input(
+            "HML (Value)",
+            min_value=-1.0,
+            max_value=1.0,
+            value=0.0,
+            step=0.1,
+            format="%.2f",
+            help="High minus Low (positive = value tilt)",
+        )
     obj_key = None
+    sim_key = "m"
 else:
     obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
     target_mkt, target_smb, target_hml = betas[obj_key]
+    sim_key = "pre_drm"
     col1, col2, col3 = st.columns(3)
     col1.metric("MKT (Market)", f"{target_mkt:.2f}")
     col2.metric("SMB (Size)", f"{target_smb:.2f}")
@@ -187,6 +247,7 @@ st.divider()
 # =============================================================================
 # OPTIMIZATION FUNCTION
 # =============================================================================
+
 
 def final_visuala(ddfs, expected_betas=None, obj=None):
     import plotly.graph_objects as go
@@ -228,7 +289,7 @@ def final_visuala(ddfs, expected_betas=None, obj=None):
     )
 
     # Optimized Portfolio (average)
-    beta_hover = ''
+    beta_hover = ""
     if expected_betas:
         beta_lines = [
             f"Month {i+1}: β_mkt={b[0]}, β_smb={b[1]}, β_hml={b[2]}"
@@ -289,9 +350,9 @@ def final_visuala(ddfs, expected_betas=None, obj=None):
     # =========================================================================
     def compute_metrics(series, label):
         start = str(series.index[0])
-        end   = str(series.index[-1])
+        end = str(series.index[-1])
         ff3_monthly = famafrenchreturns()
-        rf = ff3_monthly[start:end]['RF']
+        rf = ff3_monthly[start:end]["RF"]
         rf = rf.mean()
         # Convert cumulative values to period returns
         returns = series.pct_change().dropna()
@@ -334,6 +395,7 @@ def final_visuala(ddfs, expected_betas=None, obj=None):
     )
 
     return averaged_df
+
 
 def optimize_portfolio(
     total_value, constrained_holdings, target_mkt, target_smb, target_hml
@@ -400,6 +462,7 @@ constrained_holdings = pd.DataFrame({st.session_state.holdings})
 target_mkt = {target_mkt}
 target_smb = {target_smb}
 target_hml = {target_hml}
+sim_key = {sim_key}
     """,
         language="python",
     )
@@ -414,7 +477,7 @@ st.divider()
 # =============================================================================
 st.subheader("Simulation Options")
 
-col1, col2 = st.columns([3,1])
+col1, col2 = st.columns([3, 1])
 
 with col1:
     use_constrained_sim = st.toggle(
@@ -423,7 +486,7 @@ with col1:
         disabled=(len(st.session_state.holdings) == 0) or (preset != "Custom"),
         help="If off, simulation runs without locked positions \nSelecting Optimized Beta will automatically override and exclude any Custom Constrained Holdings",
     )
-    max_runs = 25 if preset == "Custom" else 2
+    max_runs = 25 if preset == "Custom" else 5
     out_years = st.number_input(
         "Testing Years",
         min_value=1,
@@ -440,7 +503,7 @@ with col2:
         max_value=50,
         value=1,
         step=1,
-        help="Number of Monte Carlo simulation runs"
+        help="Number of Monte Carlo simulation runs",
     )
 
 st.caption("Each year of testing takes approximately 30–45 seconds to run.")
@@ -470,7 +533,9 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             st.success(
                 f"Optimization Complete — using data as of **{target_date.strftime('%B %Y')}**. Results Below:"
             )
-            st.info("Scroll down to view Historical Monte Carlo Simulation and performance metrics.")
+            st.info(
+                "Scroll down to view Historical Monte Carlo Simulation and performance metrics."
+            )
             with st.expander("Debug: Data returned from optimizer"):
                 st.write(f"**Shape:** {results_df.shape}")
                 st.write(f"**Columns:** {results_df.columns.tolist()}")
@@ -551,14 +616,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             with st.spinner("Running Monte Carlo simulation..."):
                 curr_weights = target_date.date()
                 end_sim = curr_weights - relativedelta(days=1)
-                if preset == "Custom":
-                    key = 'm'
-                    obj_key = None
-                else: 
-                    key = 'drm'
-                    obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
 
-                # rebalace_opt_weights is opt_portf_weights for each period
                 oos1_list, oos1_avg, oos1_y, expected_betas, rebalance_opt_weights = (
                     monte_carlo_simulation(
                         num_runs,
@@ -569,7 +627,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                         3,
                         out_years,
                         total_value,
-                        key,
+                        sim_key,
                         sim_constrained,
                         price_monthly_data,
                         new_monthly_data,
@@ -579,16 +637,14 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                     )
                 )
 
-                avg_drm = final_visuala(oos1_list, expected_betas,obj_key)
-                # weights_port = rebalanced_optimal_weights_m(
-                #     oos1_list[0], rebalance_opt_weights, price_monthly_data
-                # )
+                avg_drm = final_visuala(oos1_list, expected_betas, obj_key)
+
                 st.caption(
-                "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
-                "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. <br>"
-                "Return streams do not account for short-term capital gains taxes or dividend reinvestment.",
-                unsafe_allow_html=True
-    )
+                    "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
+                    "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. <br>"
+                    "Return streams do not account for short-term capital gains taxes or dividend reinvestment.",
+                    unsafe_allow_html=True,
+                )
 
         except Exception as e:
             st.error("Optimization failed!")
@@ -613,13 +669,13 @@ footer = """
     left: 0;
     bottom: 0;
     width: 100%;
-    background-color: transparent; /* Changed to transparent to blend with Streamlit themes */
+    background-color: transparent;
     color: #31333F;
     text-align: center;
-    padding: 20px 10px; /* Added vertical padding for breathing room */
+    padding: 20px 10px;
     font-size: 14px;
     border-top: 1px solid #e6e6e6;
-    margin-top: 50px; /* Pushes it away from your last chart/table */
+    margin-top: 50px;
 }
 .footer a:hover {
     text-decoration: underline;
@@ -635,5 +691,4 @@ footer = """
 </div>
 """
 
-# Place this line at the very end of your script
 st.markdown(footer, unsafe_allow_html=True)
