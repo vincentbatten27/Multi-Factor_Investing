@@ -1790,9 +1790,10 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
                     obj_key
                 )
             elif rebal_freq == 'pre_drm':
-                oos1_new_performance = get_premade_mrebalance_front_end(
-                out_years, obj_key,n_simulations
+                oos1_list, oos1_avg, oos1_y, expected_betas, rebalance_opt_weights = get_premade_mrebalance_front_end(
+                out_years, obj_key, n_simulations
                 )
+                return oos1_list, oos1_y, oos1_avg, expected_betas, rebalance_opt_weights
         globals()[f'x{i}_df']=oos1_new_performance.copy()
         globals()[f'y{i}_df']=new_performances.copy()
         results.append(globals()[f'x{i}_df'])
