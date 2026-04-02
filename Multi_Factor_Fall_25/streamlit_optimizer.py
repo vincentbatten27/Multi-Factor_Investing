@@ -155,7 +155,7 @@ def get_betas():
     OBJECTIVES = ["max_return", "sharpe", "sortino", "volatility", "downside_vol"]
     betas = {}
     today = pd.Timestamp.now()
-    if today.day >= 2:
+    if today.day >= 10: #should be 2 but stooq is down so holding off for now. 
         target_date = today.replace(day=1)
     else:
         target_date = (today - pd.DateOffset(months=1)).replace(day=1)
