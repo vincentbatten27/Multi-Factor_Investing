@@ -1807,7 +1807,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
     return results,yearly_returns,averages, expected_betas, rebalance_opt_weights
 # In[135]:
 
-def get_premade_rebalance_front_end(os_years, obj, num_iteration):
+def get_premade_mrebalance_front_end(os_years, obj, num_iteration):
     results = []
     expected_betas = []
 
