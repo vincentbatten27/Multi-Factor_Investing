@@ -1046,7 +1046,6 @@ def new_run_with_backtest_rebalance(inyears,outyears,betaA,betaB,betaC, rebal_fr
     return noos1_new_performance 
 
 
-
 # In[237]:
 
 
@@ -1728,9 +1727,6 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC):
     return results, yearly_returns, averages
 
 
-
-
-
 # In[134]:
 
 def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings,
@@ -1816,7 +1812,8 @@ def get_premade_mrebalance_front_end(os_years, obj,num_iteration):
 
     for i in range(num_iteration):
         df = pd.read_csv(
-            f"Front_End_Strategies_Iteration_3\pre_drm_2025_{obj}_run{i+1}.csv",
+            fSCRIPT_DIR
+            / "Front_End_Strategies_Iteration_3\pre_drm_2025_{obj}_run{i+1}.csv",
             index_col=0,
             parse_dates=True,
         )
@@ -1824,7 +1821,7 @@ def get_premade_mrebalance_front_end(os_years, obj,num_iteration):
         results.append(df)
     return results
 
-    
+
 def expand_performance2(df):
     # Initialize the list with the first dataframe
     dflist = [df]
@@ -2398,9 +2395,6 @@ def optimal_weights_appended(opt_port):
     return opt_portfolio_weights_appended
 
 
-
-
-
 def run_sp500_data():
     
     index = pd.read_csv(SCRIPT_DIR / 'spy_data.csv')
@@ -2604,4 +2598,3 @@ def fetch_stooq_full_history(ticker):
         
     except Exception as e:
         return ticker, None, "ERROR"
-
