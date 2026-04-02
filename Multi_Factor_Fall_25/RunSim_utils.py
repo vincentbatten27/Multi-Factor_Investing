@@ -1816,7 +1816,7 @@ def get_premade_mrebalance_front_end(os_years, obj,num_iteration):
 
     for i in range(num_iteration):
         df = pd.read_csv(
-            f"Front_End_Strategies_Iteration_3/pre_drm_2025_{obj}_run{i+1}.csv",
+            f"Front_End_Strategies_Iteration_3\pre_drm_2025_{obj}_run{i+1}.csv",
             index_col=0,
             parse_dates=True,
         )

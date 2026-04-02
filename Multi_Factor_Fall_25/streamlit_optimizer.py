@@ -500,7 +500,7 @@ with col2:
     num_runs = st.number_input(
         "Monte Carlo Runs",
         min_value=1,
-        max_value=50,
+        max_value=5,
         value=1,
         step=1,
         help="Number of Monte Carlo simulation runs",
