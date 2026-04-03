@@ -74,24 +74,19 @@ if input_method == "Upload CSV":
     )
     uploaded_file = st.file_uploader("Upload Holdings CSV", type=["csv"])
     if uploaded_file is not None:
-        try:
-            uploaded_df = pd.read_csv(uploaded_file)
-            if (
-                "Ticker" not in uploaded_df.columns
-                or "Value" not in uploaded_df.columns
-            ):
-                st.error("CSV must have 'Ticker' and 'Value' columns!")
-            else:
-                uploaded_df["Ticker"] = uploaded_df["Ticker"].str.upper().str.strip()
-                uploaded_df["Value"] = pd.to_numeric(
-                    uploaded_df["Value"], errors="coerce"
-                )
-                uploaded_df = uploaded_df.dropna()
-                st.session_state.holdings = uploaded_df.to_dict("records")
-                st.success(f"✅ Loaded {len(st.session_state.holdings)} holdings")
-                st.rerun()
-        except Exception as e:
-            st.error(f"Error reading CSV: {str(e)}")
+    try:
+        uploaded_df = pd.read_csv(uploaded_file)
+        if "Ticker" not in uploaded_df.columns or "Value" not in uploaded_df.columns:
+            st.error("CSV must have 'Ticker' and 'Value' columns!")
+        else:
+            uploaded_df["Ticker"] = uploaded_df["Ticker"].str.upper().str.strip()
+            uploaded_df["Value"] = pd.to_numeric(uploaded_df["Value"], errors="coerce")
+            uploaded_df = uploaded_df.dropna()
+            st.session_state.holdings = uploaded_df.to_dict("records")
+            st.success(f"✅ Loaded {len(st.session_state.holdings)} holdings")
+            # remove the st.rerun() here
+    except Exception as e:
+        st.error(f"Error reading CSV: {str(e)}")
 
 else:
     col1, col2, col3 = st.columns([2, 2, 1])
