@@ -73,7 +73,7 @@ if input_method == "Upload CSV":
         mime="text/csv",
     )
     uploaded_file = st.file_uploader("Upload Holdings CSV", type=["csv"])
-    if uploaded_file is not None:
+    if uploaded_file is not None and not st.session_state.get("csv_loaded"):
         try:
             uploaded_df = pd.read_csv(uploaded_file)
             if "Ticker" not in uploaded_df.columns or "Value" not in uploaded_df.columns:
@@ -83,11 +83,13 @@ if input_method == "Upload CSV":
                 uploaded_df["Value"] = pd.to_numeric(uploaded_df["Value"], errors="coerce")
                 uploaded_df = uploaded_df.dropna()
                 st.session_state.holdings = uploaded_df.to_dict("records")
+                st.session_state.csv_loaded = True
                 st.success(f"✅ Loaded {len(st.session_state.holdings)} holdings")
-                # remove the st.rerun() here
+                st.rerun()
         except Exception as e:
             st.error(f"Error reading CSV: {str(e)}")
-
+    if uploaded_file is None:
+        st.session_state.csv_loaded = False
 else:
     col1, col2, col3 = st.columns([2, 2, 1])
 
@@ -162,7 +164,7 @@ def get_betas():
         base_path = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(
             base_path,
-            f"Front_End_Strategies_Iteration_3/{obj}/rebal_explored_{obj}_active_{weights_opt_d.strftime('%Y-%m-%d')}.csv",
+            f"Front_End_Strategies_Iteration_4_excess{obj_key}/rebal_explored_{obj_key}_{weights_opt_d.strftime('%Y-%m-%d')}.csv",
         )
         df = pd.read_csv(path)
         best = df.nlargest(1, "reward").iloc[0]
