@@ -233,7 +233,7 @@ if preset == "Custom":
 else:
     obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
     target_mkt, target_smb, target_hml = betas[obj_key]
-    sim_key = "pre_drm"
+    sim_key = "drm"
     col1, col2, col3 = st.columns(3)
     col1.metric("MKT (Market)", f"{target_mkt:.2f}")
     col2.metric("SMB (Size)", f"{target_smb:.2f}")
@@ -398,7 +398,7 @@ def optimize_portfolio(
     total_value, constrained_holdings, target_mkt, target_smb, target_hml
 ):
     today = pd.Timestamp.now()
-    if today.day >= 2:
+    if today.day >= 10:
         target_date = today.replace(day=1)
     else:
         target_date = (today - pd.DateOffset(months=1)).replace(day=1)
