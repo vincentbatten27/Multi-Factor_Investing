@@ -85,8 +85,8 @@ def extract_stock_data(df, tdickers, start, end):
                 print()
                # print(f"Column '{col}' could not be converted to float.")
     df_selected.interpolate(method='linear',inplace=True)
-    df_selected = df_selected.fillna(method='ffill')
-    df_selected = df_selected.fillna(method='bfill')
+    df_selected = df_selected.ffill()
+    df_selected = df_selected.bfill()
     return df_selected
 
 
@@ -102,10 +102,13 @@ def extract_spy_data(df, start, end):
 
 # In[93]:
 
-
-def get_spy2(start, end, t1, rebal_freq):
+def get_spy2(start, end, t1, rebal_freq, c_portf):
     ### Get tickers + setup
     global tickers, spy
+
+    new_seed = np.random.randint(0, 1_000_000_000, dtype=int)
+    np.random.seed(new_seed)
+    random.seed(int(new_seed))
 
     new_monthly_data1 = new_monthly_data.copy()
     new_monthly_data1.index = pd.to_datetime(new_monthly_data1.index)
@@ -120,7 +123,7 @@ def get_spy2(start, end, t1, rebal_freq):
             (pd.datetime(t1) - relativedelta(years=1)).year, 2026
         )  # Universe selection year (currently max 2025)
     # ensure sp500 membership
-    new_monthly_data.index = pd.to_datetime(new_monthly_data.index)
+    # print(f'{spy_year1}:{spy_year2}')
     universe_year = spy_yoy_tickers.loc[str(spy_year1) : str(spy_year2)]
     if len(universe_year) > 0:
         candidate_universe = set(universe_year.iloc[0].dropna())
@@ -129,12 +132,17 @@ def get_spy2(start, end, t1, rebal_freq):
 
     candidate_universe = list(candidate_universe.intersection(new_monthly_data.columns))
     # ensure tickers are not NA in regression period (typically 3 years)
-    regression_window = new_monthly_data.loc[start:end, candidate_universe]
-    valid_tickers = regression_window.columns[
-        ~regression_window.isna().any(axis=0)
+    end_reg = str(pd.to_datetime(t1) + relativedelta(months=1))
+    ret_regression_window = new_monthly_data.loc[start:end_reg, candidate_universe]
+    valid_tickers_ret = ret_regression_window.columns[
+        ~ret_regression_window.isna().any(axis=0)
     ].tolist()
-
-    tickers = valid_tickers
+    prc_regression_window = price_monthly_data.loc[start:end_reg, candidate_universe]
+    valid_tickers_prc = prc_regression_window.columns[
+        ~prc_regression_window.isna().any(axis=0)
+    ].tolist()
+    valid_tickers = list(set(valid_tickers_ret) & set(valid_tickers_prc))    
+    tickers =  noise_adjustmnet(valid_tickers,new_seed, c_portf)
     ### Import the monthly data
     global monthly_data
     global base_w
@@ -151,7 +159,6 @@ def get_spy2(start, end, t1, rebal_freq):
 
     # Adjusting tickers list
     tickers = list(monthly_data.columns[:-1])
-
 
 # In[94]:
 
@@ -343,12 +350,23 @@ def extract_weights(c_portf):
 
 # In[100]:
 
+def noise_adjustmnet(tickers, seed,c_portf):
+
+    rng = np.random.default_rng(seed)
+    n_keep = round(len(tickers) * (23/25))
+    array_t = rng.choice(tickers, size= n_keep, replace=False)
+    if c_portf is not None:
+        must_hold = list(c_portf["Ticker"])
+        tickers = list(set(list(array_t) + must_hold ))
+    else:
+        tickers = list(array_t)
+    # print(f'Check : {len(tickers)}')
+    
+    return tickers
+
 
 def optimization(c_portf):#new
     
-    new_seed = np.random.randint(0, 1_000_000_000, dtype=int)
-    np.random.seed(new_seed)
-    random.seed(int(new_seed))
 
     global index, wei, aux, err, binary
     if c_portf is not None : # if we arent sending None, then this runs
@@ -373,8 +391,7 @@ def optimization(c_portf):#new
 
     # Base weights and transaction-cost coefficients
     # base_weights[i] must be indexable by ticker
-    base = {i: float(base_weights[i]) for i in I}
-    # transaction cost coefficient per unit aux:
+    base = {i: float(base_weights[i]) for i in I}    # transaction cost coefficient per unit aux:
     # aux[i] * B * t_cost[i] / s_price[i]
     tc_coef = {i: float(B * t_cost[i] / s_price[i]) for i in I}
 
@@ -411,7 +428,8 @@ def optimization(c_portf):#new
         index += port + err[t] >= rhs
 
     # Transaction cost constraint (no per-ticker tr_cost vars)
-    index += lpSum(aux[i] * tc_coef[i] for i in I) <= 2000
+    max_tc = B * 0.002
+    index += lpSum(aux[i] * tc_coef[i] for i in I) <= max_tc
 
     # Limit # of stocks in portfolio
     for i in I:
@@ -503,19 +521,6 @@ def portfolio_betas():
     return port_betas
 
 
-# In[103]:
-
-
-import time
-
-def timed(name, fn, *args, **kwargs):
-    t0 = time.perf_counter()
-    out = fn(*args, **kwargs)
-    dt = time.perf_counter() - t0
-    print(f"{name:25s} {dt:9.3f} s")
-    return out
-
-
 # In[104]:
 
 
@@ -528,7 +533,7 @@ def simulator(
     end = final
     global mkt_bet, smb_bet, hml_bet
     mkt_bet, smb_bet, hml_bet = [], [], []
-    get_spy2(start, end, t1, rebal_freq)
+    get_spy2(start, end, t1, rebal_freq,c_portf)
     # Adjusting tickers list as some tickers will not be included in the monthly_data if there is no data for test date range
     global tickers
     tickers = list(monthly_data.columns[:-1])
@@ -551,7 +556,7 @@ def simulator(
     )  # ONLY HAVE THIS LINE OF CODE WHEN YOU ARE CONSTRUCTING THE PORTFOLIO FROM SCRATCH
 
     famafrenchreturns()
-    to_cal_stock_price(start, end)
+    to_cal_stock_price(start, final)
     Transaction_Costs()
     optimization(c_portf)
     others()
@@ -936,95 +941,7 @@ def new_date_calculation():
     print(in_of_sample_year_start)
     print(in_of_sample_year_end)
 
-    return inner_in_of_sample_year_start
-
-# In[113]:
-
-
-def new_run_with_backtest_rebalance_rlm(inyears,outyears,betaA,betaB,betaC, rebal_freq, adj):
-    global start_date
-    global end_date
-    global os_years,tostorelist,nchecklist
-    global in_years
-    os_years=outyears
-    in_years=inyears
-    global performances
-    performances={}
-    global spy_performances
-    spy_performances={}
-    global new_performances
-    new_performances={}
-    global new_spy_performances
-    new_spy_performances={}
-    global inner_n_year_before_cal
-    inner_n_year_before_cal=new_date_calculation()
-    global n_year_before
-    global n_year_after
-    n_year_before=in_of_sample_year_start[1]
-    n_year_after=in_of_sample_year_end[in_years]
-    global newbudget
-    newbudget = 1000000
-    simulator(betaA,betaB,betaC,n_year_before,n_year_after,newbudget,50,None)
-    global checklist
-    global mchecklist
-    checklist=[]
-    mchecklist=[]
-    tostorelist=[]
-    global rebalance_opt_weights
-    global port_betas_list 
-    port_betas_list = []
-    rebalance_opt_weights = []
-    os_count = 1        
-    for k in range(os_years-adj): 
-        global os_start
-        global os_end
-        global oos1_new_performances 
-        oos1_new_performances={}
-        global init
-        os_start=out_of_sample_year_start[1+k]
-        os_end=out_of_sample_year_end[1+k]
-
-        noos1_new_performance=pd.DataFrame()
-        global checklist_1
-        new_date_calculation()
-        
-        checking=out_of_sample()
-        tostorelist.append(checking)
-        inner_n_year_before=inner_n_year_before_cal[k+1]
-        inner_n_year_after=str(pd.to_datetime(out_of_sample_year_end[k+1]) - relativedelta(years=1))
-        # print('****************** Training Period: **********************')
-        # print(inner_n_year_before)
-        # print(inner_n_year_after)
-        
-        checklist.append(oos1_new_performance)
-        
-        if(rebal_freq == 'y'):
-            
-            newbudget=1000000*oos1_new_performance['Optimized Portfolio'][-1]  
-            simulator(betaA,betaB,betaC,inner_n_year_before,inner_n_year_after,newbudget,500,None)
-            rebalance_opt_weights.append(opt_weights)
-            if(os_count == os_years-adj):
-                checklist=extract_performance(checklist)
-                noos1_new_performance=pd.concat(checklist, ignore_index=False)
-        if k == 0:
-            performances[k + 1] = oos1_new_performance["Optimized Portfolio"].iloc[-1]
-            spy_performances[k + 1] = oos1_new_performance["SP_500"].iloc[-1]
-            start_date = os_start
-        else:
-            performances[k + 1] = oos1_new_performance["Optimized Portfolio"].iloc[-1] * performances[k]
-            spy_performances[k + 1] = oos1_new_performance["SP_500"].iloc[-1] * spy_performances[k]
-            end_date = os_end 
-        os_count +=1
-    for kk in range(os_years-adj): 
-        placeholder=noos1_new_performance.index[0]
-        placeholder=placeholder.replace(year=placeholder.year+(kk+1))
-        if placeholder in noos1_new_performance.index:
-            new_spy_performances[kk + 1] = noos1_new_performance.loc[placeholder,"SP_500"]
-            new_performances[kk + 1] = noos1_new_performance.loc[placeholder,"Optimized Portfolio"]
-    
-    new_spy_performances[os_years-adj] = noos1_new_performance.iloc[-1].loc["SP_500"]
-    new_performances[os_years-adj] = noos1_new_performance.iloc[-1].loc["Optimized Portfolio"]
-    return noos1_new_performance 
+    return inner_in_of_sample_year_start 
 
 
 # In[294]:
@@ -1129,174 +1046,6 @@ def new_run_with_backtest_rebalance(inyears,outyears,betaA,betaB,betaC, rebal_fr
     return noos1_new_performance 
 
 
-def new_run_with_backtest_rebalance_cv(inyears,outyears,betaA,betaB,betaC, rebal_freq):
-    global start_date
-    global end_date
-    global os_years
-    global in_years
-    global os_months
-    os_years=outyears
-    os_months = os_years*12
-    in_years=inyears
-    global performances
-    performances={}
-    global spy_performances
-    spy_performances={}
-    global new_performances
-    new_performances={}
-    global new_spy_performances
-    new_spy_performances={}
-    inner_n_year_before_cal =new_date_calculation()
-    global n_year_before
-    global n_year_after
-    n_year_before= in_of_sample_year_start[1]
-    n_year_after= in_of_sample_year_end[in_years]
-    global rebalance_opt_weights
-    global port_betas_list 
-    port_betas_list = []
-    rebalance_opt_weights = []
-    prev_month_perf = 1
-    noos1_new_performance=pd.DataFrame()
-    global expected_betas
-    expected_betas = []
-    for k in range(os_months-1):   
-        # so base is above, and then first step is to grab the performance of January 2020 (assuming standard run)
-        # to add to noos1_perf and to update budget    
-
-        # print(n_year_after)
-        n_year_before_updated = str(pd.to_datetime(n_year_before) + relativedelta(months=k))
-        n_year_after_updated = str(pd.to_datetime(n_year_after) + relativedelta(months=k))
-        start_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=36))
-        end_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=37))
-        curr_year = (pd.to_datetime(n_year_after_updated)+relativedelta(months=1)).year 
-        try:
-            curr_df = pd.read_csv(fSCRIPT_DIR /'yrebal_explored_sortino_o1_{curr_year}.csv')            
-        except:
-            print('File DNE')
-        X = curr_df[['c1', 'c2', 'c3', 'reward']]
-        X_standardized = (X - X.mean()) / X.std()
-        cov_matrix = X_standardized.cov()
-        eigenvalues = np.linalg.eigvals(cov_matrix)
-        eigenvalues = np.sort(eigenvalues)[::-1]
-        condition_number = eigenvalues[0] / eigenvalues[-1]
-        mperformance_results =[]
-        print(f'Conditon Number: {condition_number}')
-        if(condition_number >10):
-            k_folds = 3 # CV folds, 3-5 is probably a good range
-            for j in range(k_folds):
-                curr_df = curr_df.sort_values(by='reward') # change
-                betaA = curr_df.iloc[-1-j][0]
-                betaB = curr_df.iloc[-1-j][1]
-                betaC = curr_df.iloc[-1-j][2]
-                #print(f'{betaA}, {betaB}, {betaC} ')
-                simulator(betaA,betaB,betaC,n_year_before_updated,n_year_after_updated,1000000*prev_month_perf,50,None)
-                mperformance_results.append(out_of_sampless(start_date1,end_date1).copy())
-            concatenated_df = pd.concat(mperformance_results,axis=1)
-            averaged_df_A = concatenated_df.filter(like='SP_500').mean(axis=1)
-            averaged_df_B = concatenated_df.filter(like='Optimized Portfolio').mean(axis=1)
-            mperformance = pd.DataFrame({
-                'SP_500': averaged_df_A,
-                'Optimized Portfolio': averaged_df_B
-            })
-        else: # standard if condition number is not at an alarming figure
-            curr_df = curr_df.sort_values(by='reward') # change
-            betaA = curr_df.iloc[-1][0]
-            betaB = curr_df.iloc[-1][1]
-            betaC = curr_df.iloc[-1][2]
-        
-            # print(f'{betaA}, {betaB}, {betaC} ')
-            expected_betas.append([betaA,betaB,betaC])
-            simulator(betaA,betaB,betaC,n_year_before_updated,n_year_after_updated,1000000*prev_month_perf,50,None)
-            rebalance_opt_weights.append(opt_portf_weights)
-            
-            mperformance = out_of_sampless(start_date1,end_date1).copy()
-            
-        snipped_perf = mperformance.iloc[1]
-        if(k==0):
-            first_perf = mperformance.iloc[0]
-            noos1_new_performance = pd.concat([noos1_new_performance , first_perf.to_frame().T])
-        prev_month_perf = snipped_perf['Optimized Portfolio'] * prev_month_perf
-        noos1_new_performance = pd.concat([noos1_new_performance , snipped_perf.to_frame().T])
-    noos1_new_performance = extract_performance_monthly(noos1_new_performance)
-    start_date= noos1_new_performance.index[0]
-    end_date = noos1_new_performance.index[-1]
-        
-    return noos1_new_performance 
-
-
-# In[116]:
-
-
-def new_run_with_backtest_mrebalance_rlm(inyears,outyears,betaA,betaB,betaC, rebal_freq,adj,adj1):
-    # Out years is set to +3 in the RLM, and the nit gets cut 5 years early
-    # Effectively your using 2017-01-01 to 2019-12-31 data to check performance of 2017-2019... 
-    global os_years
-    global in_years
-    global os_months
-    os_years=outyears
-    os_months = (inyears)*12
-    print(' ')  
-    print(' ')
-    print(' ')  
-    print(' ')
-    print(f"########ADJ############{adj}")
-    print(' ')  
-    print(' ')
-    print(' ')  
-    print(' ')
-    in_years=inyears
-    global performances
-    performances={}
-    global spy_performances
-    spy_performances={}
-    global new_performances
-    new_performances={}
-    global new_spy_performances
-    new_spy_performances={}
-    new_date_calculation()
-    global n_year_before
-    global n_year_after
-    n_year_before= in_of_sample_year_start[1]
-    n_year_after= in_of_sample_year_end[in_years]
-
-    #so base is above, and then first step is to grab the performance of January 2020 (assuming standard run)
-    #to add to noos1_perf and to update budget    
-
-    global rebalance_opt_weights
-    global port_betas_list 
-    port_betas_list = []
-    rebalance_opt_weights = []
-    prev_month_perf = 1
-    noos1_new_performance=pd.DataFrame()
-    for k in range(os_months-1):
-        k += adj1
-        # so base is above, and then first step is to grab the performance of January 2020 (assuming standard run)
-        # to add to noos1_perf and to update budget    
-        if(rebal_freq == 'm'):
-            n_year_before_updated = str(pd.to_datetime(n_year_before) + relativedelta(months=k) - relativedelta(years=adj))
-            n_year_after_updated = str(pd.to_datetime(n_year_after) + relativedelta(months=k) - relativedelta(years=adj))
-            start_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=36))
-            end_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=37))
-            simulator(betaA,betaB,betaC,n_year_before_updated,n_year_after_updated,1000000*prev_month_perf,50,None)
-            
-            print("**************Training*****************")
-            print(n_year_before_updated)
-            print(n_year_after_updated)
-            print("**************Testing*****************")
-            print(start_date1)
-            print(end_date1)
-            mperformance = out_of_sampless(start_date1,end_date1).copy()
-            snipped_perf = mperformance.iloc[1]
-            if(k==0):
-                first_perf = mperformance.iloc[0]
-                noos1_new_performance = pd.concat([noos1_new_performance , first_perf.to_frame().T])
-            prev_month_perf = snipped_perf['Optimized Portfolio'] * prev_month_perf
-            noos1_new_performance = pd.concat([noos1_new_performance , snipped_perf.to_frame().T])
-    noos1_new_performance = extract_performance_monthly(noos1_new_performance)
-        
-    return noos1_new_performance 
-
-
 # In[237]:
 
 
@@ -1333,10 +1082,10 @@ def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC, rebal_f
     noos1_new_performance=pd.DataFrame()
     global expected_betas
     expected_betas = []
-    
+
     for k in range(os_months-1):   
         # so base is above, and then first step is to grab the performance of January 2020 (assuming standard run)
-        # to add to noos1_perf and to update budget'    
+        # to add to noos1_perf and to update budget'
         if(rebal_freq == 'm'):
             n_year_before_updated = str(pd.to_datetime(n_year_before) + relativedelta(months=k))
             n_year_after_updated = str(pd.to_datetime(n_year_after) + relativedelta(months=k))
@@ -1360,10 +1109,10 @@ def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC, rebal_f
             curr_year = (pd.to_datetime(n_year_after_updated)+relativedelta(months=1)).year 
             print(start_date1)
             try:
-                #curr_df = pd.read_csv(f'Active_Strategy_CSVs/yrebal_explored_sortino_active_{curr_year}.csv')
+                # curr_df = pd.read_csv(f'Active_Strategy_CSVs/yrebal_explored_sortino_active_{curr_year}.csv')
                 curr_df = pd.read_csv(fSCRIPT_DIR /'Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv')    
-                #curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{curr_year}.csv')            
-                #curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{pd.to_datetime(start_date1).date()}.csv')  
+                # curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{curr_year}.csv')
+                # curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{pd.to_datetime(start_date1).date()}.csv')
             except FileNotFoundError:
                 curr_df = pd.read_csv(fSCRIPT_DIR /'yrebal_explored_sortino_resample_surrogate_2018-07-01.csv')  
                 print('File DNE')
@@ -1371,12 +1120,12 @@ def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC, rebal_f
             betaA = curr_df.iloc[-1][0]
             betaB = curr_df.iloc[-1][1]
             betaC = curr_df.iloc[-1][2]
-        
+
             print(f'{betaA}, {betaB}, {betaC} ')
             expected_betas.append([betaA,betaB,betaC])
             simulator(betaA,betaB,betaC,n_year_before_updated,n_year_after_updated,1000000*prev_month_perf,50,c_portf)
             rebalance_opt_weights.append(opt_portf_weights)
-            
+
             mperformance = out_of_sampless(start_date1,end_date1).copy()
             snipped_perf = mperformance.iloc[1]
             if(k==0):
@@ -1387,14 +1136,23 @@ def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC, rebal_f
     noos1_new_performance = extract_performance_monthly(noos1_new_performance)
     start_date= noos1_new_performance.index[0]
     end_date = noos1_new_performance.index[-1]
-        
+
     return noos1_new_performance 
 
 
-# BEFORE YOU RUN OTHER JAWNS FIX THE $$ STARTING BUDGET LOGIC IN OTHERS $$
 def new_run_with_backtest_mrebalance_front_end(
-    target_date,inyears, outyears, betaA, betaB, betaC, starting_budget, rebal_freq, c_portf
+    target_date,
+    inyears,
+    outyears,
+    betaA,
+    betaB,
+    betaC,
+    starting_budget,
+    rebal_freq,
+    c_portf,
+    obj_key,
 ):
+    # front end target date is end of last month (i.e., march 2026 is rn, feb-28-2026 is target date)
     global start_date
     global start_date1
     global end_date
@@ -1435,7 +1193,8 @@ def new_run_with_backtest_mrebalance_front_end(
     global expected_betas
     expected_betas = []
     budget = starting_budget
-    for k in range(os_months - 1):
+    for k in range(os_months -1 ):#DELETE AFTER
+
         # so base is above, and then first step is to grab the performance of January 2020 (assuming standard run)
         # to add to noos1_perf and to update budget'
         if rebal_freq == "m":
@@ -1452,24 +1211,32 @@ def new_run_with_backtest_mrebalance_front_end(
             end_date1 = str(
                 pd.to_datetime(n_year_before_updated) + relativedelta(months=37)
             )
+
             expected_betas.append([betaA, betaB, betaC])
-            budget = budget* prev_month_perf
+            budget = budget * prev_month_perf
             t1 = start_date11
-            simulator(
-                betaA,
-                betaB,
-                betaC,
-                n_year_before_updated,
-                n_year_after_updated,
-                budget,
-                50,
-                c_portf,
-                t1,
-                rebal_freq
-            )
-            rebalance_opt_weights.append(opt_portf_weights)
-            mperformance = out_of_sampless(start_date11, end_date1).copy()
-            snipped_perf = mperformance.iloc[1]
+            for attempt in range(3):
+                try:
+                    simulator(
+                        betaA,
+                        betaB,
+                        betaC,
+                        n_year_before_updated,
+                        n_year_after_updated,
+                        budget,
+                        50,
+                        c_portf,
+                        t1,
+                        rebal_freq,
+                    )
+                    rebalance_opt_weights.append(opt_portf_weights)
+                    mperformance = out_of_sampless(start_date11, end_date1).copy()
+                    snipped_perf = mperformance.iloc[1]
+                    break
+                except IndexError:
+                    if attempt == 2:
+                        raise
+
             if k == 0:
                 first_perf = mperformance.iloc[0]
                 noos1_new_performance = pd.concat(
@@ -1482,64 +1249,58 @@ def new_run_with_backtest_mrebalance_front_end(
 
         if rebal_freq == "drm":
             n_year_before_updated = str(
-                pd.to_datetime(n_year_before) + relativedelta(months=k)
+                pd.to_datetime(n_year_before) + relativedelta(months=k+1) # delete the + 1 if iteration is not 3
             )
             n_year_after_updated = str(
-                pd.to_datetime(n_year_after) + relativedelta(months=k)
+                pd.to_datetime(n_year_after) + relativedelta(months=k+1) # delete the + 1 if iteration is not 3
             )
-            start_date1 = str(
+            start_date11 = str(
                 pd.to_datetime(n_year_before_updated) + relativedelta(months=36)
             )
             end_date1 = str(
                 pd.to_datetime(n_year_before_updated) + relativedelta(months=37)
             )
-            curr_year = (
-                pd.to_datetime(n_year_after_updated) + relativedelta(months=1)
-            ).year
-            print(start_date1)
+
             try:
-                # curr_df = pd.read_csv(f'Active_Strategy_CSVs/yrebal_explored_sortino_active_{curr_year}.csv')
-                curr_df = pd.read_csv(
-                    f"Reward_CSVs_Surrogate/yrebal_explored_sortino_surrogate_{curr_year}.csv"
-                )
-                # curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{curr_year}.csv')
-                # curr_df = pd.read_csv(f'yrebal_explored_sortino_resample_surrogate_{pd.to_datetime(start_date1).date()}.csv')
+                path = f"Front_End_Strategies_Iteration_4_excess{obj_key}/rebal_explored_{obj_key}_{(pd.to_datetime(n_year_after_updated)+ pd.offsets.MonthEnd(0)).date()}.csv"
+                curr_df = pd.read_csv(SCRIPT_DIR / path)
             except FileNotFoundError:
-                curr_df = pd.read_csv(
-                    f"yrebal_explored_sortino_resample_surrogate_2018-07-01.csv"
-                )
+
                 print("File DNE")
-            curr_df = curr_df.sort_values(by="reward")
-            betaA = curr_df.iloc[-1][0]
-            betaB = curr_df.iloc[-1][1]
-            betaC = curr_df.iloc[-1][2]
+            best = curr_df.nlargest(1, 'reward').iloc[0]
+            betaA,betaB,betaC = [best['c1'], best['c2'], best['c3']]
 
-            print(f"{betaA}, {betaB}, {betaC} ")
             expected_betas.append([betaA, betaB, betaC])
-            budget = budget* prev_month_perf
-
-            simulator(
-                betaA,
-                betaB,
-                betaC,
-                n_year_before_updated,
-                n_year_after_updated,
-                budget,
-                50,
-                c_portf,
-                t1,
-                rebal_freq
-            )
-            rebalance_opt_weights.append(opt_portf_weights)
-
-            mperformance = out_of_sampless(start_date1, end_date1).copy()
-            snipped_perf = mperformance.iloc[1]
+            budget = budget * prev_month_perf
+            t1 = start_date11
+            for attempt in range(3):
+                try:
+                    simulator(
+                        betaA,
+                        betaB,
+                        betaC,
+                        n_year_before_updated,
+                        n_year_after_updated,
+                        budget,
+                        50,
+                        None,
+                        t1,
+                        rebal_freq,
+                    )
+                    rebalance_opt_weights.append(opt_portf_weights)
+                    mperformance = out_of_sampless(start_date11, end_date1).copy()
+                    snipped_perf = mperformance.iloc[1]
+                    break
+                except IndexError:
+                    if attempt == 2:
+                        raise
+   
             if k == 0:
                 first_perf = mperformance.iloc[0]
                 noos1_new_performance = pd.concat(
                     [noos1_new_performance, first_perf.to_frame().T]
                 )
-            prev_month_perf = snipped_perf["Optimized Portfolio"] 
+            prev_month_perf = snipped_perf["Optimized Portfolio"]
             noos1_new_performance = pd.concat(
                 [noos1_new_performance, snipped_perf.to_frame().T]
             )
@@ -1548,6 +1309,7 @@ def new_run_with_backtest_mrebalance_front_end(
     end_date = noos1_new_performance.index[-1]
 
     return noos1_new_performance
+
 
 # In[118]:
 
@@ -1965,177 +1727,6 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC):
     return results, yearly_returns, averages
 
 
-# In[130]:
-
-
-def calculate_yearly_returns_from_start(df):
-    df.index = pd.to_datetime(df.index)
-    start_date = df.index[0] 
-    start_month = start_date.month
-    start_year = start_date.year
-
-    yearly_returns = {}
-    for year_offset in range(1, df.index[-1].year - start_year + 1):
-        comparison_date = pd.Timestamp(start_year + year_offset, start_month, 1)
-        if comparison_date in df.index:
-            start_value = df.iloc[0, 1]  # Value at the start (first month)
-            comparison_value = df.loc[comparison_date, df.columns[1]]
-            yearly_return = (comparison_value / start_value) - 1
-            yearly_returns[comparison_date.year] = yearly_return
-        else: 
-            start_value = df.iloc[0, 1]
-            comparison_date=df.index[-1]
-            comparison_value = df.loc[comparison_date, df.columns[1]]
-            yearly_return = (comparison_value / start_value) - 1
-            yearly_returns[comparison_date.year] = yearly_return
-            
-
-    return yearly_returns
-
-
-# In[131]:
-
-
-def calculate_yearly_returns_from_start2(df):
-    df.index = pd.to_datetime(df.index)
-    start_date = df.index[0] 
-    start_month = start_date.month
-    start_year = start_date.year
-
-    yearly_returns = {}
-    for year_offset in range(1, df.index[-1].year - start_year + 1):
-        comparison_date = pd.Timestamp(start_year + year_offset, start_month, 1)
-        if comparison_date in df.index:
-            start_value = df.iloc[0, 0]  # Value at the start (first month)
-            comparison_value = df.loc[comparison_date, df.columns[0]]
-            yearly_return = (comparison_value / start_value) - 1
-            yearly_returns[comparison_date.year] = yearly_return
-        else: 
-            start_value = df.iloc[0, 0]
-            comparison_date=df.index[-1]
-            comparison_value = df.loc[comparison_date, df.columns[0]]
-            yearly_return = (comparison_value / start_value) - 1
-            yearly_returns[comparison_date.year] = yearly_return
-
-    return yearly_returns
-
-
-# In[132]:
-
-
-def new_calculate_yearly_returns(df):
-    yearly_returns = {}
-    start_index = df.index[0]  
-    end_index = df.index[-1] 
-    current_start = start_index
-    year_counter = 1
-
-    while current_start < end_index:
-        next_year_end = current_start + pd.DateOffset(months=12)
-        if next_year_end > end_index:
-            next_year_end = end_index
-        if next_year_end in df.index:
-            start_value = df.loc[current_start, 'Optimized Portfolio']
-            end_value = df.loc[next_year_end, 'Optimized Portfolio']
-            yearly_returns[year_counter] = (end_value / start_value) - 1
-            year_counter += 1
-        current_start = current_start + pd.DateOffset(months=12)
-        
-    return yearly_returns
-
-def new_calculate_yearly_returns2(df):
-    yearly_returns = {}
-    start_index = df.index[0]  
-    end_index = df.index[-1] 
-    current_start = start_index
-    year_counter = 1
-
-    while current_start < end_index:
-        next_year_end = current_start + pd.DateOffset(months=12)
-        if next_year_end > end_index:
-            next_year_end = end_index
-        if next_year_end in df.index:
-            start_value = df.loc[current_start, 'SP_500']
-            end_value = df.loc[next_year_end, 'SP_500']
-            yearly_returns[year_counter] = (end_value / start_value) - 1
-            year_counter += 1
-        current_start = current_start + pd.DateOffset(months=12)
-        
-    return yearly_returns
-
-def new_get_all_yearly_returns(listof):
-    yearly_data = {}
-
-    for i, df in enumerate(listof):
-        df_yearly_returns = new_calculate_yearly_returns(df)
-        
-        for year, return_value in df_yearly_returns.items():
-            if year not in yearly_data:
-                yearly_data[year] = {}
-            yearly_data[year][f'df_{i + 1}'] = return_value  # Store return with df number as key
-
-    return yearly_data
-def new_calculate_percentiles(yearly_data):
-    percentiles_data = {}
-
-    for year, year_returns in yearly_data.items():
-        returns = list(year_returns.values())
-        
-        percentile_99 = np.percentile(returns, 99)
-        percentile_1 = np.percentile(returns, 1)
-        median = np.median(returns)
-
-        percentiles_data[year] = {
-            '99th Percentile': percentile_99,
-            'Median': median,
-            '1st Percentile': percentile_1
-        }
-
-    return percentiles_data
-
-
-# In[133]:
-
-
-def monte_carlo_simulation_rlm(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, rebal_freq,adj,adj1): 
-    global new_data 
-    global price_monthly_data 
-    global new_monthly_data 
-    global indexgspc 
-    global spy_yoy_tickers 
-    new_data = new_data1.copy()
-    price_monthly_data=new_data.drop(columns='RET')
-    new_monthly_data=new_data.drop(columns='PRC')
-    price_monthly_data=price_monthly_data.pivot_table(index='Date', columns='Ticker', values='PRC', aggfunc='first')
-    new_monthly_data=new_monthly_data.pivot_table(index='Date', columns='Ticker', values='RET', aggfunc='first')  
-    price_monthly_data, new_monthly_data = update_stock_data(price_monthly_data, new_monthly_data) 
-    indexgspc = indexgspc1.copy()
-    spy_yoy_tickers = spy_yoy_tickers1.copy()
-    results = []
-    yearly_returns=[]
-    global oos1_new_performance1
-    for i in range(n_simulations):
-        if type == 'rebalance':
-            if(rebal_freq == 'y' or rebal_freq ==  'dry'):
-                oos1_new_performance=new_run_with_backtest_rebalance_rlm(in_years1,out_years,mbetaA,mbetaB,mbetaC,rebal_freq,adj)
-            if(rebal_freq == 'm' or rebal_freq == 'drm'):
-                oos1_new_performance = new_run_with_backtest_mrebalance_rlm(in_years1,out_years,mbetaA,mbetaB,mbetaC,rebal_freq,adj,adj1)
-        else:
-            oos1_new_performance=new_run_with_backtest(in_years1,out_years,mbetaA,mbetaB,mbetaC)
-        globals()[f'x{i}_df']=oos1_new_performance.copy()
-        globals()[f'y{i}_df']=new_performances.copy()
-        results.append(globals()[f'x{i}_df'])
-        yearly_returns.append(globals()[f'y{i}_df'])
-    
-    sums = {key: 0 for key in yearly_returns[0]}
-    for d in yearly_returns:
-        for key, value in d.items():
-            sums[key] += value
-    num_dicts = len(yearly_returns)
-    averages = {key: sums[key] / num_dicts for key in sums}
-    return results,yearly_returns,averages
-
-
 # In[134]:
 
 def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings,
@@ -2161,7 +1752,9 @@ price_monthly_data1,new_monthly_data1,indexgspc1,spy_yoy_tickers1):
 def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, starting_budget, rebal_freq,c_portf,price_monthly_data1,
                     new_monthly_data1,
                     indexgspc1,
-                    spy_yoy_tickers1): 
+                    spy_yoy_tickers1,
+                    obj_key
+                    ): 
     global price_monthly_data
     price_monthly_data = price_monthly_data1
     global new_monthly_data 
@@ -2183,17 +1776,24 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
             if(rebal_freq == 'cv'):
                 oos1_new_performance = new_run_with_backtest_rebalance_cv(in_years1,out_years,mbetaA,mbetaB,mbetaC,'drm')
         else:
-            oos1_new_performance = new_run_with_backtest_mrebalance_front_end(
-                type,
-                in_years1,
-                out_years,
-                mbetaA,
-                mbetaB,
-                mbetaC,
-                starting_budget,
-                rebal_freq,
-                c_portf,
-            )
+            if rebal_freq == 'drm':
+                oos1_new_performance = new_run_with_backtest_mrebalance_front_end(
+                    type,
+                    in_years1,
+                    out_years,
+                    mbetaA,
+                    mbetaB,
+                    mbetaC,
+                    starting_budget,
+                    rebal_freq,
+                    c_portf,
+                    obj_key
+                )
+            elif rebal_freq == 'pre_drm':
+                oos1_list, oos1_avg, oos1_y, expected_betas, rebalance_opt_weights = get_premade_mrebalance_front_end(
+                out_years, obj_key, n_simulations
+                )
+                return oos1_list, oos1_y, oos1_avg, expected_betas, rebalance_opt_weights
         globals()[f'x{i}_df']=oos1_new_performance.copy()
         globals()[f'y{i}_df']=new_performances.copy()
         results.append(globals()[f'x{i}_df'])
@@ -2205,8 +1805,28 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
             sums[key] += value
     num_dicts = len(yearly_returns)
     averages = {key: sums[key] / num_dicts for key in sums}
-    return results,yearly_returns,averages
+    return results,yearly_returns,averages, expected_betas, rebalance_opt_weights
 # In[135]:
+
+def get_premade_mrebalance_front_end(os_years, obj, num_iteration):
+    results = []
+    expected_betas = []
+
+    for i in range(num_iteration):
+        path = SCRIPT_DIR / f"Front_End_Strategies_Iteration_3/pre_drm_2025_{obj}_run{i+1}.csv"
+        df = pd.read_csv(path, index_col=0, parse_dates=True)
+        df = df.iloc[-(os_years * 12):]
+        results.append(df)
+
+    # Build expected_betas from first run's index (all runs share same dates)
+    for date in results[0].index:
+        file_date = (date - pd.DateOffset(days=1)).strftime('%Y-%m-%d')
+        rebal_path = SCRIPT_DIR / f"Front_End_Strategies_Iteration_3/{obj}/rebal_explored_{obj}_active_{file_date}.csv"
+        rebal_df = pd.read_csv(rebal_path)
+        best = rebal_df.nlargest(1, 'reward').iloc[0]
+        expected_betas.append([best['c1'], best['c2'], best['c3']])
+
+    return results, None, None, expected_betas, None
 
 
 def expand_performance2(df):
@@ -2235,171 +1855,12 @@ def expand_performance2(df):
 # In[136]:
 
 
-def finale_visual(diction,word):
-    fig, ax = plt.subplots(figsize=(14, 8))
-    
-    # Iterate over the dictionary (key as label, value as DataFrame)
-    for label, df in diction.items():
-        if word not in label:
-            ax.plot(df['Optimized Portfolio'], label=f'{label}_optimized')
-    
-    # Plot the SP_500 from the last DataFrame (assuming it exists in the last DataFrame)
-    # last_df = list(diction.values())[-1]
-    # ax.plot(last_df['SP_500'], label='SP_500', linestyle='--', marker='o', color='red')
-    
-    # # Concatenate all DataFrames (along the columns)
-    # concatenated_df = pd.concat(diction.values(), axis=1)
-    
-    # # Average the columns related to 'SP_500' and 'Optimized Portfolio'
-    # averaged_df_A = concatenated_df.filter(like='SP_500').mean(axis=1)
-    # averaged_df_B = concatenated_df.filter(like='Optimized Portfolio').mean(axis=1)
-    
-    # # Create a DataFrame for the averaged values
-    # averaged_df = pd.DataFrame({
-    #     'SP_500': averaged_df_A,
-    #     # 'Optimized Portfolio': averaged_df_B
-    # })
-    
-    # # Uncomment if you want to plot the averaged data
-    # ax.plot(averaged_df.index, averaged_df['Optimized Portfolio'], label='Average optimized performance', marker='o', color='black')
-    
-    ax.set_xlabel('Months')
-    ax.set_ylabel('ROI')
-    ax.set_title('Various Optimized Portfolio Comparison for every 1 dollar invested')
-    ax.legend()
-    plt.show()
-
-
-# In[137]:
-
-
-def save_df_to_existing_excel(df, filename, sheet_name, start_row=0, start_col=0, gap=0):
-    
-    with pd.ExcelWriter(filename, engine='openpyxl', mode='a') as writer:
-        if sheet_name not in writer.book.sheetnames:
-            writer.book.create_sheet(sheet_name)
-        df.to_excel(writer, sheet_name=sheet_name, startrow=start_row, startcol=start_col, index=False)
-        
-        return start_row + len(df) + gap
-
-
-# In[138]:
-
-
-def save_df_to_existing_excel(df, filename, sheet_name, start_row=0, start_col=0, gap=0):
-    
-    with pd.ExcelWriter(filename, engine='openpyxl', mode='a') as writer:
-        if sheet_name not in writer.book.sheetnames:
-            writer.book.create_sheet(sheet_name)
-        df.to_excel(writer, sheet_name=sheet_name, startrow=start_row, startcol=start_col, index=False)
-        
-        return start_row + len(df) + gap
-
-
-# In[139]:
-
-
-def save_df_with_combination_to_excel(df, filename, sheet_name, combination, start_row=0, start_col=0, gap=0):
-    if not isinstance(combination, (list, tuple)):
-        raise ValueError("Combination should be a list or tuple of values.")
-    df_transposed = df.T
-    df_transposed.columns = [f"Year {i+1}" for i in range(len(df_transposed.columns))]
-    combined_row = list(combination) + df_transposed.iloc[0].tolist()
-    combined_df = pd.DataFrame([combined_row], columns=[f"Beta {i+1}" for i in range(len(combination))] + df_transposed.columns.tolist())
-
-    try:
-        book = load_workbook(filename)
-        if sheet_name in book.sheetnames:
-            header = False  
-        else:
-            header = True
-    except FileNotFoundError:
-        header = True  
-
-    with pd.ExcelWriter(filename, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-        combined_df.to_excel(
-            writer,
-            sheet_name=sheet_name,
-            startrow=start_row,
-            startcol=start_col,
-            index=False,
-            header=header
-        )
-        return start_row + len(combined_df) + gap, 
-
-
-# In[140]:
-
-
-def cumulative_returns_cal(somelist):
-    final_returns = {f"df {i + 1}": df.iloc[-1, 1] for i, df in enumerate(somelist)}
-    final_return_values = list(final_returns.values())
-    percentile_99_value = np.percentile(final_return_values, 99)
-    percentile_1_value = np.percentile(final_return_values, 1)
-    index_99 = min(range(len(final_return_values)), key=lambda i: abs(final_return_values[i] - percentile_99_value))
-    index_1 = min(range(len(final_return_values)), key=lambda i: abs(final_return_values[i] - percentile_1_value))
-    key_99 = list(final_returns.keys())[index_99]
-    key_1 = list(final_returns.keys())[index_1]
-    df_99 = somelist[int(key_99.split()[1]) - 1]  
-    df_1 = somelist[int(key_1.split()[1]) - 1]
-    yearly_returns_99 = calculate_yearly_returns_from_start(df_99)
-    yearly_returns_1 = calculate_yearly_returns_from_start(df_1)
-    yearly_returns_sp = calculate_yearly_returns_from_start2(df_1)
-    yearly_returns_avg = calculate_yearly_returns_from_start(avg_100)
-    yearly_returns_99 = {key: value * 100 for key, value in yearly_returns_99.items()}
-    yearly_returns_1 = {key: value * 100 for key, value in yearly_returns_1.items()}
-    yearly_returns_sp = {key: value * 100 for key, value in yearly_returns_sp.items()}
-    yearly_returns_avg = {key: value * 100 for key, value in yearly_returns_avg.items()}
-    data = {
-        '99 percentile': pd.Series(yearly_returns_99),
-        'Average': pd.Series(yearly_returns_avg),
-        '1 percentile': pd.Series(yearly_returns_1),
-        'sp500': pd.Series(yearly_returns_sp)
-    }
-    returns_df = pd.DataFrame(data)
-    returns_df.index.name = 'Year'
-    returns_df.columns.name = 'Percentile'
-    returns_df = returns_df.T
-    newyearly_data = new_get_all_yearly_returns(somelist)
-    newpercentiles_data = new_calculate_percentiles(newyearly_data)
-    sp500_newyearly_data = new_calculate_yearly_returns2(somelist[0])
-    final_return_df = pd.DataFrame(newpercentiles_data)
-    final_return_df.loc['SP500'] = pd.Series(sp500_newyearly_data)
-    final_return_df = (final_return_df * 100).round(2)
-    first_panknakercentile = {key: value['1st Percentile'] for key, value in newpercentiles_data.items()}
-    one_percentile_df = pd.DataFrame(list(first_panknakercentile.items()), columns=['Year', '1 percentile return in %'])
-    one_percentile_df.set_index('Year',inplace=True)
-    one_percentile_df=(one_percentile_df * 100).round(2)
-
-    
-    return returns_df,final_return_df,one_percentile_df
-def variable_current_date():
-    global today
-    global os_start
-    global os_end
-    global n_year_before
-    global n_year_after
-    os_years
-def visual():
-      plt.style.use('ggplot')
-      fig = plt.figure(figsize=(12,8), dpi=100)
-      axes = fig.add_axes([0.1, 0.1, 0.8, 0.8])   # left, bottom, width, height (range 0 to 1)
-      for i in range(0,len(oos1_daily_data.columns[-2:])):
-        axes.plot(oos1_new_performance.index, oos1_new_performance.iloc[:,i], linewidth=1)
-      axes.set_xlabel('Date')
-      axes.set_ylabel('Performance')
-      axes.set_title('Out of Sample 1 - Daily Performance of $1 USD of Portfolios')
-      axes.legend(oos1_daily_data.columns[-2:], bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0, fontsize='small')
-      plt.savefig('oos1_daily_performance.png') 
-      plt.show()
-
-
 # In[141]:
 
 
 def famafrenchreturns_FS():
     global ff3_monthly_FS
-    ff3_monthly_FS = pd.read_csv('ff3_wrds.csv')
+    ff3_monthly_FS = pd.read_csv(SCRIPT_DIR / 'ff3_wrds.csv')
     ff3_monthly_FS.set_index(ff3_monthly_FS['dateff'], inplace=True)
     ff3_monthly_FS.index.name = 'Date'
     ff3_monthly_FS = ff3_monthly_FS.drop(columns={'dateff'})
@@ -2870,7 +2331,7 @@ def rebalanced_optimal_weights_y():
 # In[148]:
 
 
-def rebalanced_optimal_weights_m(oos1_list):
+def rebalanced_optimal_weights_m(oos1_list,rebalance_opt_weights,price_monthly_data):
     global rebalance_optimal_weights_appended 
     
     full_tickers = price_monthly_data.columns
@@ -2915,7 +2376,7 @@ def optimal_weights_appended(opt_port):
     
     tickers_opt = opt_port.index.tolist()
 
-    prices = pd.read_csv('daat.csv', parse_dates=['date'])
+    prices = pd.read_csv(SCRIPT_DIR / 'daat.csv', parse_dates=['date'])
     prices.drop(columns='PERMNO', inplace=True)
     prices.drop(columns='RET', inplace=True)
     prices.rename(columns={'date': 'Date', 'TICKER': 'Ticker'}, inplace=True)
@@ -2939,68 +2400,6 @@ def optimal_weights_appended(opt_port):
     # normalize the values
     opt_portfolio_weights_appended = holding_values.div(portfolio_value, axis=0)
     return opt_portfolio_weights_appended
-
-
-# In[150]:
-
-
-def compute_rbpsa_betas(df_X, df_y):
-    """
-    Perform Return-Based Style Analysis (RBSA) to compute the factor betas.
-    
-    Parameters:
-    - df_X: DataFrame with factor returns, indexed by date (factors such as market, bonds, commodities, etc.)
-    - df_y: Series with asset returns (target), indexed by date
-    
-    Returns:
-    - DataFrame with betas for each factor for each date
-    """
-    # Initialize an empty list to store betas for each date
-    betas = []
-
-    # Iterate over each row starting from the 4th day (index 3) for sliding window analysis
-    for t in range(3, len(df_X)):
-        # Get the current date (t)
-        current_date = df_X.index[t]
-        
-        # Select the current row and the previous 3 rows (sliding window) for both asset returns and factor returns
-        X_window = df_X.iloc[t-3:t+1]  # Factor returns for the current and previous 3 days
-        y_window = df_y.iloc[t-3:t+1]  # Asset returns for the current and previous 3 days
-        
-        # Add a column of 1's for the intercept term (bias term) in the regression model
-        X_window_b = np.c_[np.ones(X_window.shape[0]), X_window]  # Add intercept term
-        
-        # Perform the regression using the normal equation to compute betas: beta = (X^T X)^-1 X^T y
-        beta_t = np.linalg.inv(X_window_b.T.dot(X_window_b)).dot(X_window_b.T).dot(y_window)
-        
-        # Store the result for the current date
-        betas.append((current_date, beta_t))
-
-    # Convert betas into a DataFrame for better readability
-    betas_df = pd.DataFrame([beta[1] for beta in betas], index=[beta[0] for beta in betas], columns=['Intercept'] + list(df_X.columns))
-    
-    return betas_df
-
-# Example Usage:
-
-# # Create the date range and example DataFrames for factor returns (3 factors: equity, bond, and commodity) and asset returns
-# date_range = pd.date_range(start="2020-01-01", periods=100, freq="D")
-# df_X = pd.DataFrame({
-#     'Equity_Factor': np.random.rand(100),   # Factor 1 (e.g., equity market returns)
-#     'Bond_Factor': np.random.rand(100),     # Factor 2 (e.g., bond market returns)
-#     'Commodity_Factor': np.random.rand(100) # Factor 3 (e.g., commodity market returns)
-# }, index=date_range)
-
-# df_y = pd.Series(np.random.rand(100), index=date_range)  # Asset returns
-
-# # Call the function to compute RBSA betas
-# betas_df = compute_rbpsa_betas(df_X, df_y)
-
-# # Print the resulting DataFrame with factor betas
-# print(betas_df)
-
-
-# In[151]:
 
 
 def run_sp500_data():
@@ -3082,59 +2481,6 @@ def run_N50_data():
     spy_yoy_tickers1 = n50_view.copy()
     return new_data1, indexgspc1, spy_yoy_tickers1
 
-
-# # Go here
-
-# run everything below this
-
-# # Import libraries
-
-# In[ ]:
-
-
-# # Reinforcement Learning
-# ### Skip this if not using
-
-# In[ ]:
-
-
-def get_consistently_worst_portfolio(dfs, portfolio_col='portfolio'):
-    """
-    Returns the DataFrame whose portfolio is consistently the worst performer.
-
-    Parameters:
-        dfs (list of pd.DataFrame): Each must have a 'portfolio' and 'sp500' column.
-        portfolio_col (str): The portfolio column name.
-
-    Returns:
-        pd.DataFrame: The worst performing portfolio's full DataFrame.
-    """
-
-    # Extract portfolio series and align them
-    portfolio_series_list = [df[portfolio_col] for df in dfs]
-
-    # Get the common index (intersection of all time indices)
-    common_index = set(portfolio_series_list[0].index)
-    for series in portfolio_series_list[1:]:
-        common_index &= set(series.index)
-    common_index = sorted(common_index)
-
-    # Reindex all series to the common index
-    aligned_series = [s.loc[common_index] for s in portfolio_series_list]
-
-    # Combine into a single DataFrame and give column names as their list indices
-    combined_portfolios = pd.concat(aligned_series, axis=1)
-    combined_portfolios.columns = list(range(len(dfs)))  # [0, 1, 2, ...]
-
-    # Count how often each column has the minimum value across rows
-    min_indices = combined_portfolios.idxmin(axis=1)
-    min_counts = min_indices.value_counts()
-
-    # Find the column (index) that was the minimum most often
-    worst_index = min_counts.idxmax()
-
-    # Return the corresponding original DataFrame
-    return dfs[worst_index]
 
 def update_stock_data(price_monthly_data, new_monthly_data,indexgspc1,spy_yoy_tickers1):
     global results
@@ -3259,532 +2605,3 @@ def fetch_stooq_full_history(ticker):
         
     except Exception as e:
         return ticker, None, "ERROR"
-
-# In[ ]:
-
-
-import numpy as np
-import pandas as pd
-import os
-
-class AdaptiveBandit:
-    def __init__(self, target_years=5, objective='Sortino'):
-        self.target_years = target_years
-        self.objective = objective.lower()
-   
-        self.best_combination = np.array([1, 0, 0])
-        self.best_return = -np.inf
-        self.storage_file = f"yrebal_explored_{self.objective}_o1_2021_check.csv"  #change this for each new df 
-        self.explored = self.load_explored_combinations()
-    def load_explored_combinations(self):
-        if os.path.exists(self.storage_file):
-            df = pd.read_csv(self.storage_file)
-            df[['c1', 'c2', 'c3', 'reward','return','std']] = df[['c1', 'c2', 'c3', 'reward','return','std']].astype(float)
-            return df
-        return pd.DataFrame(columns=['c1', 'c2', 'c3', 'reward','return','std'])
-    def save_combination(self, combination, reward, returns, std):
-        combination = self.round_combination(combination)
-        reward = float(reward)
-        returns = float(returns)
-        std = float(std)
-
-        # already seen?
-        if self.check_existing_combination(combination) is not None:
-            return
-
-        new_entry = pd.DataFrame([{
-            'c1': combination[0],
-            'c2': combination[1],
-            'c3': combination[2],
-            'reward': reward,
-            'return': returns,
-            'std': std
-        }])
-        self.explored = pd.concat([self.explored, new_entry], ignore_index=True)
-        self.explored.to_csv(self.storage_file, index=False)
-
-
-
-    def check_existing_combination(self, combination):
-        combination = self.round_combination(combination)
-        match = self.explored[
-            (self.explored['c1'] == combination[0]) &
-            (self.explored['c2'] == combination[1]) &
-            (self.explored['c3'] == combination[2])
-        ]
-        if not match.empty:
-            return match.iloc[0]['reward']
-        return None
-
-    def round_combination(self, combination):
-        return np.round(np.array(combination, dtype=float), 1)
-
-
-
-    def evaluate_combination(self, beta_combination):
-        betaa = beta_combination[0]
-        betab = beta_combination[1]
-        betac = beta_combination[2]
-        oos1_list,oos1_list_yearly,oos1_average=monte_carlo_simulation_rlm(2,betaa, betab, betac,'rebalance', 3,7, 'y',4) # change this to adjust training/validation sets
-        if self.objective == 'max_return':
-            simulated_df = final_visual()
-        else:
-            simulated_df = get_consistently_worst_portfolio(oos1_list, 'Optimized Portfolio')
-        return simulated_df
-
-    def reward_function(self, simulated_df):
-        if self.objective in ['max_return']:
-            returns_spy = simulated_df['SP_500'].pct_change().dropna()
-            returns_opt = simulated_df['Optimized Portfolio'].pct_change().dropna()
-
-            cum_ret_spy = (1 + returns_spy).prod() - 1
-            cum_ret_opt = (1 + returns_opt).prod() - 1
-
-            # Reward = excess cumulative return vs S&P
-            reward = cum_ret_opt - cum_ret_spy
-
-            
-            returns = simulated_df['Optimized Portfolio'].iloc[-1]
-            std =  simulated_df['Optimized Portfolio'].std()
-
-            return reward,returns, std
-        
-        elif self.objective == 'sharpe':
-            #need to fill 
-            print("WORK IN PROGRESS")
-        elif self.objective == 'sortino':
-            rf_annual = .0501
-            rf_monthly = (1 + rf_annual)**(1/12) - 1
-
-            ret_spy = simulated_df['SP_500'].pct_change().dropna()
-            ret_opt = simulated_df['Optimized Portfolio'].pct_change().dropna()
-
-            active = (ret_opt - rf_monthly) - (ret_spy - rf_monthly)  # rf cancels anyway
-            # equivalently: active = ret_opt - ret_spy
-
-            downside_active = active[active < 0]
-            downside_vol_active = np.sqrt((downside_active**2).mean()) * np.sqrt(12)
-
-            mean_active = active.mean() * 12
-
-            sortino_active = mean_active / downside_vol_active
-
-            reward = sortino_active
-            returns = simulated_df['Optimized Portfolio'].iloc[-1]
-            std = ret_opt.std()
-            print('****************** Validation Period: **********************')
-            print(simulated_df.index[0])         
-            print(simulated_df.index[-1])
-            return reward,returns, std
-        
-        elif self.objective == 'volatility':
-            returns_spy = simulated_df['SP_500'].pct_change().dropna()
-            returns_opt = simulated_df['Optimized Portfolio'].pct_change().dropna()
-
-            vol_spy = returns_spy.std() * np.sqrt(12)
-            vol_opt = returns_opt.std() * np.sqrt(12)
-
-            # Option A: ratio (similar to your old downside_vol ratio)
-            reward = vol_spy / vol_opt  # >1 means lower vol than SP500
-
-            # Option B: difference
-            # reward = vol_spy - vol_opt  # positive = lower vol
-            returns = simulated_df['Optimized Portfolio'].iloc[-1]
-            std = ret_opt.std()
-            return reward,returns, std
-        
-        else:
-            raise ValueError(f"Unknown objective: {self.objective}")
-
-  
-    def explore_direction(self, base_combination):
-        candidates = []
-        directions = [-0.1, 0.1]
-        lower_bounds = np.array([0.7, -0.6, -0.6])
-        upper_bounds = np.array([1.3, 0.6, 0.6])
-        found_new = False
-
-        for i in range(3):
-            for delta in directions:
-                new_combination = base_combination.copy()
-                new_combination[i] += delta
-                new_combination = np.clip(new_combination, lower_bounds, upper_bounds)
-
-                if self.check_existing_combination(new_combination) is not None:
-                    continue  # Already explored, skip it
-
-                new_combination = np.round(new_combination, 1)
-                simulated_df = self.evaluate_combination(new_combination)
-                reward,returns,std = self.reward_function(simulated_df)
-                self.save_combination(new_combination, reward,returns,std)
-                candidates.append((new_combination, reward))
-                found_new = True
-        
-
-        return candidates, found_new
-
-    def select_next_combination(self):
-        candidates, found_new = self.explore_direction(self.best_combination)
-
-        if not candidates:
-            return self.best_combination, False  # No new exploration found
-
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        best_candidate, best_reward = candidates[0]
-
-        if best_reward > self.best_return:
-            self.best_combination = best_candidate
-            self.best_return = best_reward
-
-        return self.best_combination, found_new
-    
-    def run_bandit(self, iterations, initializer):
-        print(f"Running bandit optimization for objective: '{self.objective}'")
-
-    # Base initialization
-        if initializer == 'yes':
-            base = np.array([1.0, 0.0, 0.0])
-        else:
-            if not self.explored.empty:
-                best_row = self.explored.loc[self.explored['reward'].idxmax()]
-                base = np.array([best_row['c1'], best_row['c2'], best_row['c3']])
-            else:
-                print("No previous data found. Using default base combination.")
-                base = np.array([1.0, 0.0, 0.0])
-
-    # Evaluate base combo
-        reward = self.check_existing_combination(base)
-        if reward is None:
-            simulated_df = self.evaluate_combination(base)
-            reward,returns,std = self.reward_function(simulated_df)
-            self.save_combination(base, reward,returns,std)
-
-        self.best_combination = base
-        self.best_return = reward
-
-        print(f"Base Combination: {self.best_combination}, Base Score: {self.best_return:.4f}")
-
-        valid_iterations = 0
-        attempt_cap = iterations * 10  # Avoid infinite loops
-
-        while valid_iterations < iterations and attempt_cap > 0:
-            new_combination, found_new = self.select_next_combination()
-            attempt_cap -= 1
-
-            if found_new:
-                valid_iterations += 1
-                print(f"[{valid_iterations}] New Combo: {new_combination} → Score: {self.best_return:.4f}")
-            else:
-              #  print("No new combination found. Expanding search...")
-                continue
-            # Optional: add random direction or noise when stuck
-            random_combo = self.best_combination + np.random.uniform(-0.1, 0.1, size=3)
-            random_combo = np.clip(random_combo, [0.7, -0.6, -0.6], [1.3, 0.6, 0.6])
-
-            if self.check_existing_combination(random_combo) is None:
-                simulated_df = self.evaluate_combination(random_combo)
-                reward, returns, std = self.reward_function(simulated_df)
-                self.save_combination(random_combo, reward, returns, std)
-
-                if reward > self.best_return:
-                    self.best_combination = random_combo
-                    self.best_return = reward
-                    valid_iterations += 1
-                    print(f"[{valid_iterations}] Random Exploration: {random_combo} → Score: {self.best_return:.4f}")
-
-        print("\nFinal Best Combination:")
-        print(f"{self.best_combination} → Score: {self.best_return:.4f}")
-
-
-# bandit = AdaptiveBandit(objective='sortino')  # or 'max_return', 'sortino', etc.
-# bandit.run_bandit(iterations=100,initializer='Yes')  # You can set iterations to whatever you want
-# is max space iterations
-
-
-# In[ ]:
-
-
-# SURRGOTATE STRATEGY ON 2015 - 2024
-from matplotlib.animation import FuncAnimation
-
-class AdaptiveBandit:
-    def __init__(self,x, objective='Sortino'):
-        self.objective = objective.lower()
-        self.x=x
-        self.best_combination = np.array([1, 0, 0])
-        self.best_return = -np.inf
-        year =  2015 + x
-        self.storage_file = f"yrebal_explored_{self.objective}_active_{year}.csv"  #change this for each new df 
-        self.explored = self.load_explored_combinations()
-    def load_explored_combinations(self):
-        if os.path.exists(self.storage_file):
-            df = pd.read_csv(self.storage_file)
-            df[['c1', 'c2', 'c3', 'reward','return','std','lambda','Sortino (MAR)']] = df[['c1', 'c2', 'c3', 'reward','return','std','lambda','Sortino (MAR)']].astype(float)
-            return df
-        return pd.DataFrame(columns=['c1', 'c2', 'c3', 'reward','return','std','lambda','Sortino (MAR)'])
-    
-        
-    def save_combination(self, combination, reward, returns, std,lambdac,sortino):
-        combination = self.round_combination(combination)
-        reward = float(reward)
-        returns = float(returns)
-        std = float(std)
-
-        # already seen?
-        if self.check_existing_combination(combination) is not None:
-            return
-
-        new_entry = pd.DataFrame([{
-            'c1': combination[0],
-            'c2': combination[1],
-            'c3': combination[2],
-            'reward': reward,
-            'return': returns,
-            'std': std,
-            'lambda':lambdac,
-            'Sortino (MAR)':sortino
-        }])
-        self.explored = pd.concat([self.explored, new_entry], ignore_index=True)
-        self.explored.to_csv(self.storage_file, index=False)
-        if len(self.explored) > 2000: #turned off
-            clear_output(wait=True)
-            df = pd.read_csv(self.storage_file,)
-            df['index']= range(len(df))
-            fig, axes = plt.subplots(figsize=(14, 10))
-
-            # Subplot 1: Reward vs Index
-            axes.plot(df['index'], df['reward'], marker='o', linestyle='-', linewidth=2, markersize=4, color='#8884d8')
-            axes.set_xlabel('Index')
-            axes.set_ylabel('Reward')
-            axes.set_title('Reward vs Index')
-            axes.grid(True, alpha=0.3)
-            plt.show()
-            df["best_so_far"] = df["reward"].cummax()
-            plt.figure(figsize=(14,6))
-            plt.plot(df["best_so_far"])
-            plt.title("Best-so-far Reward vs Index")
-            plt.xlabel("Index")
-            plt.ylabel("Best reward so far")
-            plt.grid(True, alpha=0.3)
-            plt.show()
-            if len(self.explored) > 10:
-                w = 10
-                df["reward_ma"] = df["reward"].rolling(w, min_periods=1).mean()
-                plt.figure(figsize=(14,6))
-                plt.plot(df["reward"], alpha=0.3)
-                plt.plot(df["reward_ma"], linewidth=2)
-                plt.title(f"Reward + {w}-pt Moving Average")
-                plt.xlabel("Index")
-                plt.ylabel("Reward")
-                plt.grid(True, alpha=0.3)
-                plt.show()
-             
-    def check_existing_combination(self, combination):
-        combination = self.round_combination(combination)
-        match = self.explored[
-            (self.explored['c1'] == combination[0]) &
-            (self.explored['c2'] == combination[1]) &
-            (self.explored['c3'] == combination[2])
-        ]
-        if not match.empty:
-            return match.iloc[0]['reward']
-        return None
-
-    def round_combination(self, combination):
-        return np.round(np.array(combination, dtype=float), 1)
-
-
-    def evaluate_combination(self, beta_combination):
-        betaa = beta_combination[0]
-        betab = beta_combination[1]
-        betac = beta_combination[2]
-        oos1_list,oos1_list_yearly,oos1_average=monte_carlo_simulation_rlm(2,betaa, betab, betac,'rebalance', 3,13-x, 'y',10-x) # change this to adjust training/validation sets
-        if self.objective == 'max_return':
-            simulated_df = final_visual()
-        else:
-            simulated_df = get_consistently_worst_portfolio(oos1_list, 'Optimized Portfolio')
-        return simulated_df
-
-    def reward_function(self, simulated_df):
-        if self.objective in ['max_return']:
-            returns_spy = simulated_df['SP_500'].pct_change().dropna()
-            returns_opt = simulated_df['Optimized Portfolio'].pct_change().dropna()
-
-            cum_ret_spy = (1 + returns_spy).prod() - 1
-            cum_ret_opt = (1 + returns_opt).prod() - 1
-
-            # Reward = excess cumulative return vs S&P
-            reward = cum_ret_opt - cum_ret_spy
-
-            
-            returns = simulated_df['Optimized Portfolio'].iloc[-1]
-            std =  simulated_df['Optimized Portfolio'].std()
-
-            return reward,returns, std
-        
-        elif self.objective == 'sharpe':
-            #need to fill 
-            print("WORK IN PROGRESS")
-        elif self.objective == 'sortino':
-           
-            gamma = 1.0
-                       
-            MARc =  gamma            
-            
-            
-            rf_annual = .0501
-            rf_monthly = (1 + rf_annual)**(1/12) - 1
-
-            ret_spy = simulated_df['SP_500'].pct_change().dropna()
-            ret_opt = simulated_df['Optimized Portfolio'].pct_change().dropna()
-            active = ret_opt - ret_spy   # a_t series
-
-            downside_active = active[active < 0]
-            active = ret_opt  - ret_spy  # rf cancels anyway
-            sigma = active.std()
-            gamma = 1.0
-                        
-            MARc = -0.25 * sigma
-            
-            downside = np.minimum(active-MARc,0)
-            
-            down2 = (downside**2).mean()
-            lam = downside.mean()**2
-            lambdac = 100
-        
-            reward = (active-lambdac*(downside**2)).mean()*12
-            returns = simulated_df['Optimized Portfolio'].iloc[-1]
-            std = ret_opt.std()
-            
-            excess = ret_opt - MARc
-            downside = np.minimum(excess,0.0)
-            downside_std = np.sqrt((downside**2).mean())
-            sortino = (excess.mean()/downside_std)*np.sqrt(12)
-            
-            print('****************** Validation Period: **********************')
-            print(simulated_df.index[0])         
-            print(simulated_df.index[-1])
-            return reward,returns, std,lambdac,sortino
-        
-        elif self.objective == 'volatility':
-            returns_spy = simulated_df['SP_500'].pct_change().dropna()
-            returns_opt = simulated_df['Optimized Portfolio'].pct_change().dropna()
-
-            vol_spy = returns_spy.std() * np.sqrt(12)
-            vol_opt = returns_opt.std() * np.sqrt(12)
-
-            # Option A: ratio (similar to your old downside_vol ratio)
-            reward = vol_spy / vol_opt  # >1 means lower vol than SP500
-
-            # Option B: difference
-            # reward = vol_spy - vol_opt  # positive = lower vol
-            returns = simulated_df['Optimized Portfolio'].iloc[-1]
-            std = ret_opt.std()
-            return reward,returns, std
-        
-        else:
-            raise ValueError(f"Unknown objective: {self.objective}")
-
-
-    def explore_direction(self, base_combination):
-        candidates = []
-        directions = [-0.1, 0.1]
-        lower_bounds = np.array([0.7, -0.6, -0.6])
-        upper_bounds = np.array([1.3, 0.6, 0.6])
-        found_new = False
-
-        for i in range(3):
-            for delta in directions:
-                new_combination = base_combination.copy()
-                new_combination[i] += delta
-                new_combination = np.clip(new_combination, lower_bounds, upper_bounds)
-
-                if self.check_existing_combination(new_combination) is not None:
-                    continue  # Already explored, skip it
-
-                new_combination = np.round(new_combination, 1)
-                simulated_df = self.evaluate_combination(new_combination)
-                reward,returns,std,lambdac,sortino = self.reward_function(simulated_df)
-                self.save_combination(new_combination, reward,returns,std,lambdac,sortino)
-                candidates.append((new_combination, reward))
-                found_new = True
-        
-
-        return candidates, found_new
-
-    def select_next_combination(self):
-        candidates, found_new = self.explore_direction(self.best_combination)
-
-        if not candidates:
-            return self.best_combination, False  # No new exploration found
-
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        best_candidate, best_reward = candidates[0]
-
-        if best_reward > self.best_return:
-            self.best_combination = best_candidate
-            self.best_return = best_reward
-
-        return self.best_combination, found_new
-    
-    def run_bandit(self, iterations, initializer):
-        print(f"Running bandit optimization for objective: '{self.objective}'")
-
-    # Base initialization
-        if initializer == 'yes':
-            base = np.array([1.0, 0.0, 0.0])
-        else:
-            if not self.explored.empty:
-                best_row = self.explored.loc[self.explored['reward'].idxmax()]
-                base = np.array([best_row['c1'], best_row['c2'], best_row['c3']])
-            else:
-                print("No previous data found. Using default base combination.")
-                base = np.array([1.0, 0.0, 0.0])
-
-    # Evaluate base combo
-        reward = self.check_existing_combination(base)
-        if reward is None:
-            simulated_df = self.evaluate_combination(base)
-            reward,returns,std,lambdac,sortino = self.reward_function(simulated_df)
-            self.save_combination(base, reward,returns,std,lambdac,sortino)
-
-        self.best_combination = base
-        self.best_return = reward
-
-        print(f"Base Combination: {self.best_combination}, Base Score: {self.best_return:.4f}")
-        saved_start = len(self.explored)
-        attempt_cap = iterations * 50  # higher because duplicates are common
-
-        while (len(self.explored) - saved_start) < iterations and attempt_cap > 0:
-            attempt_cap -= 1
-
-            # hillclimb step (may or may not add new rows)
-            self.select_next_combination()
-
-            # ALWAYS try random exploration (no more "continue" when stuck)
-            random_combo = self.best_combination + np.random.uniform(-0.3, 0.3, size=3)
-            random_combo = np.clip(random_combo, [0.7, -0.6, -0.6], [1.3, 0.6, 0.6])
-            random_combo = self.round_combination(random_combo)
-
-            if self.check_existing_combination(random_combo) is None:
-                simulated_df = self.evaluate_combination(random_combo)
-                reward, returns, std, lambdac, sortino = self.reward_function(simulated_df)
-                self.save_combination(random_combo, reward, returns, std, lambdac, sortino)
-
-                if reward > self.best_return:
-                    self.best_return = reward
-                    self.best_combination = random_combo
-
-                saved = len(self.explored) - saved_start
-                print(f"[{saved}] Random: {random_combo} → Score: {self.best_return:.4f}")
-
-        
-
-        print("\nFinal Best Combination:")
-        print(f"{self.best_combination} → Score: {self.best_return:.4f}")
-
-# for x in range(10):
-#     from IPython.display import clear_output
-#     bandit = AdaptiveBandit(x,objective='sortino')  # or 'max_return', 'sortino', etc.
-#     bandit.run_bandit(iterations=100,initializer = 'yes')  # You can set iterations to whatever you want
-#     # is max space iterations
