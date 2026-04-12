@@ -1,6 +1,6 @@
 date,objective,start_index
-2019-02-28,max_return,1
-2019-02-28,sharpe,57
-2019-02-28,sortino,137
-2019-02-28,volatility,150
-2019-02-28,downside_vol,178
+2024-02-29,max_return,14
+2024-02-29,sharpe,92
+2024-02-29,sortino,148
+2024-02-29,volatility,175
+2024-02-29,downside_vol,231
