@@ -60,34 +60,53 @@ Finally, there is an optional constraint for existing weights. This allows an in
 
 ---
 
+---
+
 ### **Adaptive Bandit Algorithm**
 
 #### Adaptive Bandit Algorithm
 
-The bandit algorithm is currently set up as a recency-weighted walk-forward strategy through the five most recent months. I say "currently" because this system is continuously being adjusted and improved, so the underlying logic is likely to change.
+The bandit algorithm is currently set up as a surrogate-based 1-year non-rebalanced validation period. I say "currently" because this system is continuously being adjusted and improved, so the underlying logic is likely to change.
 
-The bandit algorithm is built on a search, score, and adjust framework — a set of beta points are tried, scored by all five rewards, then based on the current objective being tested, adjusted to a new set of beta points.
+The bandit is built on a **search, score, and adjust** framework: a set of beta points is tried, scored across all five rewards, then — based on the current objective being tested — adjusted to a new set of beta points.
 
-The inter-objective rewarding is structured this way to maximize computational efficiency, since all rewards are computed at each simulation. When the first objective is tested (i.e., Max Return), 150 beta combinations are tried. On each combination, the rewards for the other four objectives are also saved — so once the 150 Max Return iterations finish, the next objective (Volatility) already has 150 sample points to use as a decision base, seeding from whichever beta combination produced the best Volatility score.
+The inter-objective rewarding is structured this way to maximize computational efficiency, since all rewards are computed at each simulation. When the first objective is tested (e.g., Max Return), 150 beta combinations are tried. On each combination, the rewards for the other four objectives are also saved — so once the 150 Max Return iterations finish, the next objective (Volatility) already has 150 sample points to use as a decision base, seeding from whichever beta combination produced the best Volatility score.
 
+#### **Period**
 
+The **validation** period, where the rewards are scored, runs from $t-13$ to $t-1$ (the previous 12 months). The **regression** period, where the optimization is run to estimate the classification of each Fama-French beta point, runs from $t-49$ to $t-14$ (36 months).
 
+For example, if we were optimizing beta points for April 1, 2026, the validation period would run from April 1, 2025 to March 31, 2026, and the regression period would run from April 1, 2022 to March 31, 2025. For each sequential month, all dates are iterated by one ($t \rightarrow t+1$).
+
+#### **Surrogate**
+
+The necessity of surrogate strategies is a complex argument, but in short: risk-adjusted return formulas do not have the intrinsic additive and convex properties that a surrogate strategy can have. That is, we take the formula for, say, the Sharpe ratio:
+
+$$
+S = \frac{\mathbb{E}[R_p - R_f]}{\sigma_p}
+$$
+
+and then approximate an additive and convex solution that converges to the Sharpe ratio:
+
+$$
+\tilde{S}(w) = w^\top \alpha - \lambda \cdot w^\top \Sigma w
+$$
+
+where $w$ is the portfolio weight vector, $\alpha = \mathbb{E}[R - R_f]$ is the vector of excess returns, $\Sigma$ is the covariance matrix, and $\lambda$ is the calibration parameter controlling the trade-off between the additive reward ($w^\top \alpha$) and the convex penalty ($w^\top \Sigma w$).
+
+To calibrate $\lambda$ so that the surrogate properly estimates the Sharpe ratio, we run a Monte Carlo simulation of 45 runs that cycles through different $\lambda$ values — with varying periods and beta combinations. The Monte Carlo is then scored on two criteria: **top-5 point overlap** and **Spearman rank correlation ($\rho$)**. Criterion 1 requires that the top 5 performing beta combinations under the surrogate match those under the true Sharpe ratio. For all $\lambda$ values where that is the case, we then choose the $\lambda$ with the highest rank correlation. From there, we repeat the process on new data and average the two beta combinations that scored best.
 
 #### **Neighborhood Search**
 
-The hill-climbing step searches in increments of $$\pm 0.1$$ along each beta dimension, clipped to the following bounds:
+The hill-climbing step searches in increments of $\pm 0.1$ along each beta dimension, clipped to the following bounds:
 
 $$
 \beta_{Mkt} \in [0.7, 1.5], \quad \beta_{SMB} \in [-0.6, 0.6], \quad \beta_{HML} \in [-0.6, 0.6]
 $$
 
-After each hill-climb step, a random uniform beta shift is applied to expand the search:
+After each hill-climb step, a random uniform beta shift of $\pm U(0.3)$ is applied around the current best to encourage exploration beyond the immediate neighborhood.
 
-$$
-\pm U(0.3)
-$$
-
-is applied around the current best to encourage exploration beyond the immediate neighborhood.
+---
 
 
 
