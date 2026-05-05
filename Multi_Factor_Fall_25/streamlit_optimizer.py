@@ -422,7 +422,27 @@ def optimize_portfolio(
 
     results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})
     return results_df, target_date
+def compute_factor_attribution(port_returns, expected_betas):
+    ff3 = famafrenchreturns()
+    ff3_slice = ff3.loc[port_returns.index[0]:port_returns.index[-1]]
 
+    contrib_results = []
+    for i in range(len(port_returns)):
+        mkt_contrib = ff3_slice['Mkt-RF'].iloc[i] * expected_betas[i][0]
+        smb_contrib = ff3_slice['SMB'].iloc[i] * expected_betas[i][1]
+        hml_contrib = ff3_slice['HML'].iloc[i] * expected_betas[i][2]
+        alpha = port_returns.iloc[i] - (mkt_contrib + smb_contrib + hml_contrib)
+
+        contrib_results.append({
+            'Date': port_returns.index[i],
+            'MKT': mkt_contrib,
+            'SMB': smb_contrib,
+            'HML': hml_contrib,
+            'Alpha': alpha,
+        })
+
+    contrib_df = pd.DataFrame(contrib_results).set_index('Date')
+    return contrib_df, ff3_slice
 
 # =============================================================================
 # SUMMARY OF INPUTS
@@ -639,28 +659,6 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # =================================================================
                 st.divider()
                 st.header("Factor Attribution Dashboard")
-
-                def compute_factor_attribution(port_returns, expected_betas):
-                    ff3 = famafrenchreturns()
-                    ff3_slice = ff3.loc[port_returns.index[0]:port_returns.index[-1]]
-
-                    contrib_results = []
-                    for i in range(len(port_returns)):
-                        mkt_contrib = ff3_slice['Mkt-RF'].iloc[i] * expected_betas[i][0]
-                        smb_contrib = ff3_slice['SMB'].iloc[i] * expected_betas[i][1]
-                        hml_contrib = ff3_slice['HML'].iloc[i] * expected_betas[i][2]
-                        alpha = port_returns.iloc[i] - (mkt_contrib + smb_contrib + hml_contrib)
-
-                        contrib_results.append({
-                            'Date': port_returns.index[i],
-                            'MKT': mkt_contrib,
-                            'SMB': smb_contrib,
-                            'HML': hml_contrib,
-                            'Alpha': alpha,
-                        })
-
-                    contrib_df = pd.DataFrame(contrib_results).set_index('Date')
-                    return contrib_df, ff3_slice
 
                 port_returns = avg_drm['Optimized Portfolio'].pct_change().dropna()
                 contrib_df, ff3_slice = compute_factor_attribution(port_returns, expected_betas)
