@@ -151,7 +151,7 @@ st.divider()
 def get_betas():
     OBJECTIVES = ["max_return", "sharpe", "sortino", "volatility", "downside_vol"]
     betas = {}
-    today = pd.Timestamp.now()
+    today = pd.Timestamp.now() -relativedelta(days=10)  # ensure we have data for the current month if we're early in the month
     target_date = today.replace(day=1)
     target_date = target_date.normalize()
     curr_weights = target_date.date()
