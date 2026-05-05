@@ -163,6 +163,7 @@ def get_betas():
             base_path,
             f"Front_End_Strategies_Iteration_4_excess{obj}/rebal_explored_{obj}_{weights_opt_d.strftime('%Y-%m-%d')}.csv",
         )
+        st.write(f"DEBUG: {path}")  # temporary, remove after
         df = pd.read_csv(path)
         best = df.nlargest(1, "reward").iloc[0]
         betas[obj] = [best["c1"], best["c2"], best["c3"]]
