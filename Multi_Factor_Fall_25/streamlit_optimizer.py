@@ -240,9 +240,7 @@ st.divider()
 
 # =============================================================================
 # OPTIMIZATION FUNCTION
-# =============================================================================
-def rolling_beta_decomposition(port_returns, ff3_monthly, expected_betas, window=6):
-    
+# =============================================================================    
 
 def final_visuala(ddfs, expected_betas=None, obj=None):
     import plotly.graph_objects as go
