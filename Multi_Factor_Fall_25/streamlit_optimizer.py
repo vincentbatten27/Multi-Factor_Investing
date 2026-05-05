@@ -659,9 +659,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # FACTOR ATTRIBUTION DASHBOARD
                 # =================================================================
                 st.divider()
-                st.header("Factor Attribution Dashboard",
-                           help="The decomposed total contributions do not sum to total returns due to the return being cumulative, while the contributions are arithmetic. " \
-                           "The monthly contributions sum perfectly to the monthly returns, but when you sum the contributions across months, it does not equal the cumulative return due to the effects of compounding.")
+                st.header("Factor Attribution Dashboard")
 
                 port_returns = avg_drm['Optimized Portfolio'].pct_change().dropna()
                 contrib_df, ff3_slice = compute_factor_attribution(port_returns, expected_betas)
@@ -669,7 +667,9 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # -----------------------------------------------------------------
                 # SECTION 1 — Full Period Summary
                 # -----------------------------------------------------------------
-                st.subheader("Full Period Summary")
+                st.subheader("Full Period Summary",
+                           help="The decomposed total contributions do not sum to total returns due to the return being cumulative, while the contributions are arithmetic. " \
+                           "The monthly contributions sum perfectly to the monthly returns, but when you sum the contributions across months, it does not equal the cumulative return due to the effects of compounding.")
 
                 hit_rates = (contrib_df > 0).mean() * 100
                 contributions = contrib_df.sum()  # cumulative arithmetic, sums perfectly
@@ -854,7 +854,7 @@ footer = """
 
 <div class="footer">
     <p>Developed by <b>Vincent Batten</b> & <b>Nate Songstad</b> | 
-    ✉ Email <a href="mailto:vincentbatten27@gmail.com?subject=Beta Optimization App Inquiry">vincentbatten27@gmail.com</a> | 
+    ✉ Email <a href="mailto:vincentbatten27@gmail.com?subject=Beta Optimization App Inquiry">vincentbatten27@gmail.com</a> <br> 
     <i>Original Logic by</i> <b>Johanan Pranesh</b><br>
     Sponsored by: <b>Jordan Weintraub</b></p>
 </div>
