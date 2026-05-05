@@ -1049,7 +1049,7 @@ def new_run_with_backtest_rebalance(inyears,outyears,betaA,betaB,betaC, rebal_fr
 # In[237]:
 
 
-def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC, rebal_freq,c_portf):
+def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC,stating_budget, rebal_freq,c_portf):
     global start_date
     global start_date1
     global end_date
@@ -1092,7 +1092,7 @@ def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC, rebal_f
             start_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=36))
             end_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=37))
             expected_betas.append([betaA,betaB,betaC])
-            simulator(betaA,betaB,betaC,n_year_before_updated,n_year_after_updated,1000000*prev_month_perf,50,c_portf)
+            simulator(betaA,betaB,betaC,n_year_before_updated,n_year_after_updated,stating_budget*prev_month_perf,50,c_portf)
             rebalance_opt_weights.append(opt_portf_weights)
             mperformance = out_of_sampless(start_date1,end_date1).copy()
             snipped_perf = mperformance.iloc[1]
