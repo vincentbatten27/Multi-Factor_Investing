@@ -760,17 +760,15 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # -----------------------------------------------------------------
                 st.subheader("Risk Attribution (Variance Decomposition)")
 
-                beta_vec = np.array([
-                    np.mean([b[0] for b in expected_betas]),
-                    np.mean([b[1] for b in expected_betas]),
-                    np.mean([b[2] for b in expected_betas]),
-                ])
+                monthly_factor_var = []
+                for i in range(len(port_returns)):
+                    b = np.array(expected_betas[i])
+                    monthly_factor_var.append(float(b @ F.cov().values @ b.T))
 
-                F = ff3_slice[['Mkt-RF', 'SMB', 'HML']].loc[port_returns.index[0]:port_returns.index[-1]]
-                factor_var = float(beta_vec @ F.cov().values @ beta_vec.T)
+                factor_var = np.mean(monthly_factor_var)
                 total_var = float(port_returns.var())
-                residual_var = total_var - factor_var
-                factor_pct = max(factor_var / total_var * 100, 0)
+                residual_var = max(total_var - factor_var, 0)  # floor at zero
+                factor_pct = min(factor_var / total_var * 100, 100)  # cap at 100%
                 residual_pct = 100 - factor_pct
 
                 fig_donut = go.Figure(go.Pie(
