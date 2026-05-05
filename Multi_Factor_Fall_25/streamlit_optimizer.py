@@ -666,7 +666,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # -----------------------------------------------------------------
                 st.subheader("Full Period Summary")
 
-                avg_contribs = contrib_df.mean()
+                avg_contribs = (contrib_df+1).mean()
                 total_port_return = port_returns.sum()
                 hit_rates = (contrib_df > 0).mean() * 100
 
