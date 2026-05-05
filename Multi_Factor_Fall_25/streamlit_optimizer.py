@@ -241,7 +241,8 @@ st.divider()
 # =============================================================================
 # OPTIMIZATION FUNCTION
 # =============================================================================
-
+def rolling_beta_decomposition(port_returns, ff3_monthly, expected_betas, window=6):
+    
 
 def final_visuala(ddfs, expected_betas=None, obj=None):
     import plotly.graph_objects as go
@@ -633,6 +634,176 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
 
                 avg_drm = final_visuala(oos1_list, expected_betas, obj_key)
 
+                # =================================================================
+                # FACTOR ATTRIBUTION DASHBOARD
+                # =================================================================
+                st.divider()
+                st.header("Factor Attribution Dashboard")
+
+                def compute_factor_attribution(port_returns, expected_betas):
+                    ff3 = famafrenchreturns()
+                    ff3_slice = ff3.loc[port_returns.index[0]:port_returns.index[-1]]
+
+                    contrib_results = []
+                    for i in range(len(port_returns)):
+                        mkt_contrib = ff3_slice['Mkt-RF'].iloc[i] * expected_betas[i][0]
+                        smb_contrib = ff3_slice['SMB'].iloc[i] * expected_betas[i][1]
+                        hml_contrib = ff3_slice['HML'].iloc[i] * expected_betas[i][2]
+                        alpha = port_returns.iloc[i] - (mkt_contrib + smb_contrib + hml_contrib)
+
+                        contrib_results.append({
+                            'Date': port_returns.index[i],
+                            'MKT': mkt_contrib,
+                            'SMB': smb_contrib,
+                            'HML': hml_contrib,
+                            'Alpha': alpha,
+                        })
+
+                    contrib_df = pd.DataFrame(contrib_results).set_index('Date')
+                    return contrib_df, ff3_slice
+
+                port_returns = avg_drm['Optimized Portfolio'].pct_change().dropna()
+                contrib_df, ff3_slice = compute_factor_attribution(port_returns, expected_betas)
+
+                # -----------------------------------------------------------------
+                # SECTION 1 — Full Period Summary
+                # -----------------------------------------------------------------
+                st.subheader("Full Period Summary")
+
+                total_contribs = contrib_df.sum()
+                total_port_return = port_returns.sum()
+                hit_rates = (contrib_df > 0).mean() * 100
+
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("MKT Total Contribution", f"{total_contribs['MKT']*100:.2f}%",
+                            help="Cumulative return attributed to market exposure")
+                col2.metric("SMB Total Contribution", f"{total_contribs['SMB']*100:.2f}%",
+                            help="Cumulative return attributed to size factor")
+                col3.metric("HML Total Contribution", f"{total_contribs['HML']*100:.2f}%",
+                            help="Cumulative return attributed to value factor")
+                col4.metric("Alpha Total", f"{total_contribs['Alpha']*100:.2f}%",
+                            help="Cumulative residual return unexplained by FF3")
+
+                st.caption("**Factor Hit Rates** — % of months each factor contributed positively")
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("MKT Hit Rate", f"{hit_rates['MKT']:.1f}%")
+                col2.metric("SMB Hit Rate", f"{hit_rates['SMB']:.1f}%")
+                col3.metric("HML Hit Rate", f"{hit_rates['HML']:.1f}%")
+                col4.metric("Alpha Hit Rate", f"{hit_rates['Alpha']:.1f}%")
+
+                st.divider()
+
+                # -----------------------------------------------------------------
+                # SECTION 2 — Monthly Stacked Bar Chart
+                # -----------------------------------------------------------------
+                st.subheader("Monthly Factor Contributions")
+
+                fig_bar = go.Figure()
+
+                colors = {'MKT': 'royalblue', 'SMB': 'darkorange', 'HML': 'seagreen', 'Alpha': 'gray'}
+
+                for factor in ['MKT', 'SMB', 'HML', 'Alpha']:
+                    fig_bar.add_trace(go.Bar(
+                        x=contrib_df.index,
+                        y=contrib_df[factor],
+                        name=factor,
+                        marker_color=colors[factor],
+                        hovertemplate="%{x|%b %Y}<br>" + factor + ": %{y:.4f}<extra></extra>",
+                    ))
+
+                fig_bar.update_layout(
+                    barmode='relative',
+                    title="Monthly Return Decomposition by Factor",
+                    xaxis=dict(title="Date", tickformat="%b %Y", tickangle=-45),
+                    yaxis=dict(title="Return Contribution", tickformat=".2%"),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    height=450,
+                )
+
+                st.plotly_chart(fig_bar, use_container_width=True)
+
+                st.divider()
+
+                # -----------------------------------------------------------------
+                # SECTION 3 — Cumulative Factor Contribution Lines
+                # -----------------------------------------------------------------
+                st.subheader("Cumulative Factor Contributions")
+
+                cumulative = contrib_df.cumsum()
+
+                fig_cum = go.Figure()
+                for factor in ['MKT', 'SMB', 'HML', 'Alpha']:
+                    fig_cum.add_trace(go.Scatter(
+                        x=cumulative.index,
+                        y=cumulative[factor],
+                        mode='lines+markers',
+                        name=factor,
+                        line=dict(color=colors[factor], width=2),
+                        marker=dict(size=5),
+                        hovertemplate="%{x|%b %Y}<br>Cumulative " + factor + ": %{y:.4f}<extra></extra>",
+                    ))
+
+                fig_cum.update_layout(
+                    title="Cumulative Factor Contributions Over OOS Period",
+                    xaxis=dict(title="Date", tickformat="%b %Y", tickangle=-45),
+                    yaxis=dict(title="Cumulative Return Contribution", tickformat=".2%"),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    height=450,
+                )
+
+                st.plotly_chart(fig_cum, use_container_width=True)
+
+                st.divider()
+
+                # -----------------------------------------------------------------
+                # SECTION 4 — Variance Decomposition
+                # -----------------------------------------------------------------
+                st.subheader("Risk Attribution (Variance Decomposition)")
+
+                beta_vec = np.array([
+                    np.mean([b[0] for b in expected_betas]),
+                    np.mean([b[1] for b in expected_betas]),
+                    np.mean([b[2] for b in expected_betas]),
+                ])
+
+                F = ff3_slice[['Mkt-RF', 'SMB', 'HML']].loc[port_returns.index[0]:port_returns.index[-1]]
+                factor_var = float(beta_vec @ F.cov().values @ beta_vec.T)
+                total_var = float(port_returns.var())
+                residual_var = total_var - factor_var
+                factor_pct = max(factor_var / total_var * 100, 0)
+                residual_pct = 100 - factor_pct
+
+                fig_donut = go.Figure(go.Pie(
+                    labels=['Factor-Driven Risk', 'Idiosyncratic Risk'],
+                    values=[factor_pct, residual_pct],
+                    hole=0.55,
+                    marker_colors=['royalblue', 'lightgray'],
+                    textinfo='label+percent',
+                    hovertemplate="%{label}: %{value:.1f}%<extra></extra>",
+                ))
+
+                fig_donut.update_layout(
+                    title=dict(text="Portfolio Variance Explained by FF3 Factors", font=dict(size=16)),
+                    height=400,
+                    paper_bgcolor='white',
+                )
+
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    st.plotly_chart(fig_donut, use_container_width=True)
+                with col2:
+                    st.write("")
+                    st.write("")
+                    st.write("")
+                    st.metric("Factor-Driven Risk", f"{factor_pct:.1f}%",
+                            help="% of portfolio variance explained by MKT, SMB, HML collectively")
+                    st.metric("Idiosyncratic Risk", f"{residual_pct:.1f}%",
+                            help="% of portfolio variance unexplained by the three factors")
+                    st.metric("Annualized Portfolio Vol", f"{port_returns.std() * np.sqrt(12) * 100:.2f}%")
                 st.caption(
                     "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
                     "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. <br>"
