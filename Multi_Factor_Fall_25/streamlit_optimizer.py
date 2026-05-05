@@ -847,10 +847,10 @@ footer = """
 </style>
 
 <div class="footer">
-    <p>Developed by <b>Vincent Batten</b> | 
+    <p>Developed by <b>Vincent Batten</b> & <b>Nate Songstad<b>| 
     ✉ Email <a href="mailto:vincentbatten27@gmail.com?subject=Beta Optimization App Inquiry">vincentbatten27@gmail.com</a> | 
     <i>Original Logic by</i> <b>Johanan Pranesh</b><br>
-    Created alongside <b>Nate Songstad & Kshitij Bhandari</b><br>
+    Created alongside <b>Kshitij Bhandari</b><br>
     Sponsored by: <b>Jordan Weintraub</b></p>
 </div>
 """
