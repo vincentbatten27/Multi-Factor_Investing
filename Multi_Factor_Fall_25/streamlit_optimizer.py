@@ -444,24 +444,7 @@ def compute_factor_attribution(port_returns, expected_betas):
     contrib_df = pd.DataFrame(contrib_results).set_index('Date')
     return contrib_df, ff3_slice
 # Convert monthly factor contributions to compounded contributions
-def compound_contributions(contrib_df, port_returns):
-    """
-    Scale each month's factor shares by that month's actual return,
-    then compound — so everything stays in geometric space.
-    """
-    total_return = (1 + port_returns).prod() - 1  # matches the chart
 
-    # Each factor's share of each month's return
-    monthly_total = contrib_df.sum(axis=1)  # should equal port_returns
-
-    compounded = {}
-    for factor in ["MKT", "SMB", "HML", "Alpha"]:
-        # Factor's proportional share each month, applied to actual return
-        monthly_share = contrib_df[factor] / monthly_total.replace(0, np.nan)
-        factor_monthly = monthly_share * port_returns
-        compounded[factor] = (1 + factor_monthly).prod() - 1
-
-    return compounded, total_return
 
 
 # =============================================================================
@@ -687,21 +670,19 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # -----------------------------------------------------------------
                 st.subheader("Full Period Summary")
 
-                avg_contribs = contrib_df.sum()
-                total_port_return = port_returns.sum()
 
                 hit_rates = (contrib_df > 0).mean() * 100
-                compounded_contribs, total_return = compound_contributions(contrib_df, port_returns)
-
+                contributions = contrib_df.sum()  # cumulative arithmetic, sums perfectly
+                total_return = port_returns.sum() 
                 col1, col2, col3, col4 = st.columns(4)
                 
-                col1.metric("MKT Total Contribution", f"{compounded_contribs['MKT']*100:.2f}%",
+                col1.metric("MKT Total Contribution", f"{contributions['MKT']*100:.2f}%",
                             help="Cumulative return attributed to market exposure")
-                col2.metric("SMB Total Contribution", f"{compounded_contribs['SMB']*100:.2f}%",
+                col2.metric("SMB Total Contribution", f"{contributions['SMB']*100:.2f}%",
                             help="Cumulative return attributed to size factor")
-                col3.metric("HML Total Contribution", f"{compounded_contribs['HML']*100:.2f}%",
+                col3.metric("HML Total Contribution", f"{contributions['HML']*100:.2f}%",
                             help="Cumulative return attributed to value factor")
-                col4.metric("Alpha Total Contribution", f"{compounded_contribs['Alpha']*100:.2f}%",
+                col4.metric("Alpha Total Contribution", f"{contributions['Alpha']*100:.2f}%",
                             help="Cumulative residual return unexplained by FF3")
 
                 st.caption("**Factor Hit Rates** — % of months each factor contributed positively")
