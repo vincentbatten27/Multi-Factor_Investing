@@ -668,7 +668,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
 
                 avg_contribs = contrib_df.sum()
                 total_port_return = port_returns.sum()
-                
+
                 hit_rates = (contrib_df > 0).mean() * 100
 
                 col1, col2, col3, col4 = st.columns(4)
@@ -759,56 +759,56 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
 
                 st.divider()
 
-                # -----------------------------------------------------------------
-                # SECTION 4 — Variance Decomposition
-                # -----------------------------------------------------------------
-                st.subheader("Risk Attribution (Variance Decomposition)")
-                F = ff3_slice[["Mkt-RF", "SMB", "HML"]]
+                # # -----------------------------------------------------------------
+                # # SECTION 4 — Variance Decomposition
+                # # -----------------------------------------------------------------
+                # st.subheader("Risk Attribution (Variance Decomposition)")
+                # F = ff3_slice[["Mkt-RF", "SMB", "HML"]]
 
-                monthly_factor_var = []
-                for i in range(len(port_returns)):
-                    b = np.array(expected_betas[i])
-                    monthly_factor_var.append(float(b @ F.cov().values @ b.T))
+                # monthly_factor_var = []
+                # for i in range(len(port_returns)):
+                #     b = np.array(expected_betas[i])
+                #     monthly_factor_var.append(float(b @ F.cov().values @ b.T))
 
-                factor_var = np.mean(monthly_factor_var)
-                total_var = float(port_returns.var())
-                residual_var = max(total_var - factor_var, 0)  # floor at zero
-                factor_pct = min(factor_var / total_var * 100, 100)  # cap at 100%
-                residual_pct = 100 - factor_pct
+                # factor_var = np.mean(monthly_factor_var)
+                # total_var = float(port_returns.var())
+                # residual_var = max(total_var - factor_var, 0)  # floor at zero
+                # factor_pct = min(factor_var / total_var * 100, 100)  # cap at 100%
+                # residual_pct = 100 - factor_pct
 
-                fig_donut = go.Figure(go.Pie(
-                    labels=['Factor-Driven Risk', 'Idiosyncratic Risk'],
-                    values=[factor_pct, residual_pct],
-                    hole=0.55,
-                    marker_colors=['royalblue', 'lightgray'],
-                    textinfo='label+percent',
-                    hovertemplate="%{label}: %{value:.1f}%<extra></extra>",
-                ))
+                # fig_donut = go.Figure(go.Pie(
+                #     labels=['Factor-Driven Risk', 'Idiosyncratic Risk'],
+                #     values=[factor_pct, residual_pct],
+                #     hole=0.55,
+                #     marker_colors=['royalblue', 'lightgray'],
+                #     textinfo='label+percent',
+                #     hovertemplate="%{label}: %{value:.1f}%<extra></extra>",
+                # ))
 
-                fig_donut.update_layout(
-                    title=dict(text="Portfolio Variance Explained by FF3 Factors", font=dict(size=16)),
-                    height=400,
-                    paper_bgcolor='white',
-                )
+                # fig_donut.update_layout(
+                #     title=dict(text="Portfolio Variance Explained by FF3 Factors", font=dict(size=16)),
+                #     height=400,
+                #     paper_bgcolor='white',
+                # )
 
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    st.plotly_chart(fig_donut, use_container_width=True)
-                with col2:
-                    st.write("")
-                    st.write("")
-                    st.write("")
-                    st.metric("Factor-Driven Risk", f"{factor_pct:.1f}%",
-                            help="% of portfolio variance explained by MKT, SMB, HML collectively")
-                    st.metric("Idiosyncratic Risk", f"{residual_pct:.1f}%",
-                            help="% of portfolio variance unexplained by the three factors")
-                    st.metric("Annualized Portfolio Vol", f"{port_returns.std() * np.sqrt(12) * 100:.2f}%")
-                st.caption(
-                    "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
-                    "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. <br>"
-                    "Return streams do not account for short-term capital gains taxes or dividend reinvestment.",
-                    unsafe_allow_html=True,
-                )
+                # col1, col2 = st.columns([1, 1])
+                # with col1:
+                #     st.plotly_chart(fig_donut, use_container_width=True)
+                # with col2:
+                #     st.write("")
+                #     st.write("")
+                #     st.write("")
+                #     st.metric("Factor-Driven Risk", f"{factor_pct:.1f}%",
+                #             help="% of portfolio variance explained by MKT, SMB, HML collectively")
+                #     st.metric("Idiosyncratic Risk", f"{residual_pct:.1f}%",
+                #             help="% of portfolio variance unexplained by the three factors")
+                #     st.metric("Annualized Portfolio Vol", f"{port_returns.std() * np.sqrt(12) * 100:.2f}%")
+                # st.caption(
+                #     "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
+                #     "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. <br>"
+                #     "Return streams do not account for short-term capital gains taxes or dividend reinvestment.",
+                #     unsafe_allow_html=True,
+                # )
 
         except Exception as e:
             st.error("Optimization failed!")
