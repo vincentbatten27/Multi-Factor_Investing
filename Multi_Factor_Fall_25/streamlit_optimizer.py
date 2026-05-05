@@ -230,7 +230,7 @@ if preset == "Custom":
 else:
     obj_key = next((v for k, v in PRESET_TO_OBJ.items() if k in preset), None)
     target_mkt, target_smb, target_hml = betas[obj_key]
-    sim_key = "drm"
+    sim_key = "pre_drm"
     col1, col2, col3 = st.columns(3)
     col1.metric("MKT (Market)", f"{target_mkt:.2f}")
     col2.metric("SMB (Size)", f"{target_smb:.2f}")
@@ -499,11 +499,11 @@ with col1:
         disabled=(len(st.session_state.holdings) == 0) or (preset != "Custom"),
         help="If off, simulation runs without locked positions \nSelecting Optimized Beta will automatically override and exclude any Custom Constrained Holdings",
     )
-    max_runs = 25 if preset == "Custom" else 5
+    max_yrs = 25 if preset == "Custom" else 7
     out_years = st.number_input(
         "Testing Years",
         min_value=1,
-        max_value=max_runs,
+        max_value=max_yrs,
         value=1,
         step=1,
         help="Number of years to see results for",

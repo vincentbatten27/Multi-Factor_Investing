@@ -1813,7 +1813,7 @@ def get_premade_mrebalance_front_end(os_years, obj, num_iteration):
     expected_betas = []
 
     for i in range(num_iteration):
-        path = SCRIPT_DIR / f"Front_End_Strategies_Iteration_3/pre_drm_2025_{obj}_run{i+1}.csv"
+        path = SCRIPT_DIR / f"Front_End_Strategies_Iteration_4c_excess_surrogate/pre_raw/pre_made_df_{obj}.csv"
         df = pd.read_csv(path, index_col=0, parse_dates=True)
         df = df.iloc[-(os_years * 12):]
         results.append(df)
