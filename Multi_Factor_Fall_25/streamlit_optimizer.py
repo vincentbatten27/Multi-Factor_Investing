@@ -508,15 +508,15 @@ with col1:
         step=1,
         help="Number of years to see results for",
     )
-
+max_runs = 10 if preset == "Custom" else 1
 with col2:
     num_runs = st.number_input(
         "Monte Carlo Runs",
         min_value=1,
-        max_value=5,
+        max_value=max_runs,
         value=1,
         step=1,
-        help="Number of Monte Carlo simulation runs",
+        help="Number of Monte Carlo simulation runs\nFor dynamic betas, 5 runs are pre made  and averaged together with variable noise.",
     )
 
 st.caption("Each year of testing takes approximately 30–45 seconds to run.")
@@ -629,7 +629,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             with st.spinner("Running Monte Carlo simulation..."):
                 curr_weights = target_date.date()
                 end_sim = curr_weights - relativedelta(days=1)
-
+                st.write('{sim_key}')
                 oos1_list, oos1_avg, oos1_y, expected_betas, rebalance_opt_weights = (
                     monte_carlo_simulation(
                         num_runs,
