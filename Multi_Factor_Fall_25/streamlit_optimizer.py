@@ -446,7 +446,6 @@ def compute_factor_attribution(port_returns, expected_betas):
 # Convert monthly factor contributions to compounded contributions
 
 
-
 # =============================================================================
 # SUMMARY OF INPUTS
 # =============================================================================
@@ -634,7 +633,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             with st.spinner("Running Monte Carlo simulation..."):
                 curr_weights = target_date.date()
                 end_sim = curr_weights - relativedelta(days=1)
-                st.write(f'{obj_key}')
+                st.write(f"{sim_key}")
                 oos1_list, oos1_avg, oos1_y, expected_betas, rebalance_opt_weights = (
                     monte_carlo_simulation(
                         num_runs,
@@ -671,12 +670,11 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # -----------------------------------------------------------------
                 st.subheader("Full Period Summary")
 
-
                 hit_rates = (contrib_df > 0).mean() * 100
                 contributions = contrib_df.sum()  # cumulative arithmetic, sums perfectly
                 total_return = port_returns.sum() 
                 col1, col2, col3, col4 = st.columns(4)
-                
+
                 col1.metric("MKT Total Contribution", f"{contributions['MKT']*100:.2f}%",
                             help="Cumulative return attributed to market exposure")
                 col2.metric("SMB Total Contribution", f"{contributions['SMB']*100:.2f}%",
@@ -782,7 +780,6 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
 
                 factor_pct = factor_var / total_var * 100
                 residual_pct = residual_var / total_var * 100
-
 
                 fig_donut = go.Figure(go.Pie(
                     labels=['Factor-Driven Risk', 'Idiosyncratic Risk'],
