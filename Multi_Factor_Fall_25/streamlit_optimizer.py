@@ -693,7 +693,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 hit_rates = (contrib_df > 0).mean() * 100
                 compounded_contribs, total_return = compound_contributions(contrib_df, port_returns)
 
-                col1, col2, col3, col4, col5 = st.columns(5)
+                col1, col2, col3, col4 = st.columns(4)
                 
                 col1.metric("MKT Total Contribution", f"{compounded_contribs['MKT']*100:.2f}%",
                             help="Cumulative return attributed to market exposure")
@@ -703,8 +703,6 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                             help="Cumulative return attributed to value factor")
                 col4.metric("Alpha Total Contribution", f"{compounded_contribs['Alpha']*100:.2f}%",
                             help="Cumulative residual return unexplained by FF3")
-                col5.metric("Total", f"{total_return*100:.2f}%",
-                            help="Total cumulative return of the portfolio over the period")
 
                 st.caption("**Factor Hit Rates** — % of months each factor contributed positively")
                 col1, col2, col3, col4 = st.columns(4)
@@ -787,16 +785,22 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 st.subheader("Risk Attribution (Variance Decomposition)")
                 F = ff3_slice[["Mkt-RF", "SMB", "HML"]]
 
-                monthly_factor_var = []
+                factor_explained_returns = []
                 for i in range(len(port_returns)):
                     b = np.array(expected_betas[i])
-                    monthly_factor_var.append(float(b @ F.cov().values @ b.T))
+                    f = F.iloc[i].values  # actual factor returns that month
+                    factor_explained_returns.append(float(b @ f))  # = b1*MKT + b2*SMB + b3*HML
 
-                factor_var = np.mean(monthly_factor_var)
-                total_var = float(port_returns.var())
-                residual_var = max(total_var - factor_var, 0)  # floor at zero
-                factor_pct = min(factor_var / total_var * 100, 100)  # cap at 100%
-                residual_pct = 100 - factor_pct
+                factor_explained_series = pd.Series(factor_explained_returns, index=port_returns.index)
+                residual_series = port_returns.values - factor_explained_series.values  # idiosyncratic
+
+                factor_var = float(factor_explained_series.var())
+                residual_var = float(pd.Series(residual_series).var())
+                total_var = factor_var + residual_var  # use this as denominator, not port_returns.var()
+
+                factor_pct = factor_var / total_var * 100
+                residual_pct = residual_var / total_var * 100
+
 
                 fig_donut = go.Figure(go.Pie(
                     labels=['Factor-Driven Risk', 'Idiosyncratic Risk'],
