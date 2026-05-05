@@ -666,19 +666,22 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # -----------------------------------------------------------------
                 st.subheader("Full Period Summary")
 
-                total_contribs = contrib_df.sum()
+                avg_contribs = contrib_df.mean()
                 total_port_return = port_returns.sum()
                 hit_rates = (contrib_df > 0).mean() * 100
 
                 col1, col2, col3, col4 = st.columns(4)
-                col1.metric("MKT Total Contribution", f"{total_contribs['MKT']*100:.2f}%",
+                col1.metric("MKT Total Contribution", f"{avg_contribs['MKT']*100:.2f}%",
                             help="Cumulative return attributed to market exposure")
-                col2.metric("SMB Total Contribution", f"{total_contribs['SMB']*100:.2f}%",
+                col2.metric("SMB Total Contribution", f"{avg_contribs['SMB']*100:.2f}%",
                             help="Cumulative return attributed to size factor")
-                col3.metric("HML Total Contribution", f"{total_contribs['HML']*100:.2f}%",
+                col3.metric("HML Total Contribution", f"{avg_contribs['HML']*100:.2f}%",
                             help="Cumulative return attributed to value factor")
-                col4.metric("Alpha Total", f"{total_contribs['Alpha']*100:.2f}%",
-                            help="Cumulative residual return unexplained by FF3")
+                col4.metric(
+                    "Alpha Total",
+                    f"{avg_contribs['Alpha']*100:.2f}%",
+                    help="Cumulative residual return unexplained by FF3",
+                )
 
                 st.caption("**Factor Hit Rates** — % of months each factor contributed positively")
                 col1, col2, col3, col4 = st.columns(4)
