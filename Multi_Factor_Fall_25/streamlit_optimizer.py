@@ -659,7 +659,9 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # FACTOR ATTRIBUTION DASHBOARD
                 # =================================================================
                 st.divider()
-                st.header("Factor Attribution Dashboard")
+                st.header("Factor Attribution Dashboard",
+                           help="The decomposed total contributions do not sum to total returns due to the return being cumulative, while the contributions are arithmetic. " \
+                           "The monthly contributions sum perfectly to the monthly returns, but when you sum the contributions across months, it does not equal the cumulative return due to the effects of compounding.")
 
                 port_returns = avg_drm['Optimized Portfolio'].pct_change().dropna()
                 contrib_df, ff3_slice = compute_factor_attribution(port_returns, expected_betas)
@@ -851,7 +853,7 @@ footer = """
 </style>
 
 <div class="footer">
-    <p>Developed by <b>Vincent Batten</b> & <b>Nate Songstad<b> | 
+    <p>Developed by <b>Vincent Batten</b> & <b>Nate Songstad</b> | 
     ✉ Email <a href="mailto:vincentbatten27@gmail.com?subject=Beta Optimization App Inquiry">vincentbatten27@gmail.com</a> | 
     <i>Original Logic by</i> <b>Johanan Pranesh</b><br>
     Sponsored by: <b>Jordan Weintraub</b></p>
