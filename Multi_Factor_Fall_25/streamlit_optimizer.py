@@ -440,8 +440,29 @@ def compute_factor_attribution(port_returns, expected_betas):
             'Alpha': alpha,
         })
 
+
     contrib_df = pd.DataFrame(contrib_results).set_index('Date')
     return contrib_df, ff3_slice
+# Convert monthly factor contributions to compounded contributions
+def compound_contributions(contrib_df, port_returns):
+    """
+    Scale each month's factor shares by that month's actual return,
+    then compound — so everything stays in geometric space.
+    """
+    total_return = (1 + port_returns).prod() - 1  # matches the chart
+
+    # Each factor's share of each month's return
+    monthly_total = contrib_df.sum(axis=1)  # should equal port_returns
+
+    compounded = {}
+    for factor in ["MKT", "SMB", "HML", "Alpha"]:
+        # Factor's proportional share each month, applied to actual return
+        monthly_share = contrib_df[factor] / monthly_total.replace(0, np.nan)
+        factor_monthly = monthly_share * port_returns
+        compounded[factor] = (1 + factor_monthly).prod() - 1
+
+    return compounded, total_return
+
 
 # =============================================================================
 # SUMMARY OF INPUTS
@@ -670,19 +691,20 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 total_port_return = port_returns.sum()
 
                 hit_rates = (contrib_df > 0).mean() * 100
+                compounded_contribs, total_return = compound_contributions(contrib_df, port_returns)
 
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("MKT Total Contribution", f"{avg_contribs['MKT']*100:.2f}%",
+                col1, col2, col3, col4, col5 = st.columns(5)
+                
+                col1.metric("MKT Total Contribution", f"{compounded_contribs['MKT']*100:.2f}%",
                             help="Cumulative return attributed to market exposure")
-                col2.metric("SMB Total Contribution", f"{avg_contribs['SMB']*100:.2f}%",
+                col2.metric("SMB Total Contribution", f"{compounded_contribs['SMB']*100:.2f}%",
                             help="Cumulative return attributed to size factor")
-                col3.metric("HML Total Contribution", f"{avg_contribs['HML']*100:.2f}%",
+                col3.metric("HML Total Contribution", f"{compounded_contribs['HML']*100:.2f}%",
                             help="Cumulative return attributed to value factor")
-                col4.metric(
-                    "Alpha Total",
-                    f"{avg_contribs['Alpha']*100:.2f}%",
-                    help="Cumulative residual return unexplained by FF3",
-                )
+                col4.metric("Alpha Total Contribution", f"{compounded_contribs['Alpha']*100:.2f}%",
+                            help="Cumulative residual return unexplained by FF3")
+                col5.metric("Total", f"{total_return*100:.2f}%",
+                            help="Total cumulative return of the portfolio over the period")
 
                 st.caption("**Factor Hit Rates** — % of months each factor contributed positively")
                 col1, col2, col3, col4 = st.columns(4)
@@ -759,56 +781,56 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
 
                 st.divider()
 
-                # # -----------------------------------------------------------------
-                # # SECTION 4 — Variance Decomposition
-                # # -----------------------------------------------------------------
-                # st.subheader("Risk Attribution (Variance Decomposition)")
-                # F = ff3_slice[["Mkt-RF", "SMB", "HML"]]
+                # -----------------------------------------------------------------
+                # SECTION 4 — Variance Decomposition
+                # -----------------------------------------------------------------
+                st.subheader("Risk Attribution (Variance Decomposition)")
+                F = ff3_slice[["Mkt-RF", "SMB", "HML"]]
 
-                # monthly_factor_var = []
-                # for i in range(len(port_returns)):
-                #     b = np.array(expected_betas[i])
-                #     monthly_factor_var.append(float(b @ F.cov().values @ b.T))
+                monthly_factor_var = []
+                for i in range(len(port_returns)):
+                    b = np.array(expected_betas[i])
+                    monthly_factor_var.append(float(b @ F.cov().values @ b.T))
 
-                # factor_var = np.mean(monthly_factor_var)
-                # total_var = float(port_returns.var())
-                # residual_var = max(total_var - factor_var, 0)  # floor at zero
-                # factor_pct = min(factor_var / total_var * 100, 100)  # cap at 100%
-                # residual_pct = 100 - factor_pct
+                factor_var = np.mean(monthly_factor_var)
+                total_var = float(port_returns.var())
+                residual_var = max(total_var - factor_var, 0)  # floor at zero
+                factor_pct = min(factor_var / total_var * 100, 100)  # cap at 100%
+                residual_pct = 100 - factor_pct
 
-                # fig_donut = go.Figure(go.Pie(
-                #     labels=['Factor-Driven Risk', 'Idiosyncratic Risk'],
-                #     values=[factor_pct, residual_pct],
-                #     hole=0.55,
-                #     marker_colors=['royalblue', 'lightgray'],
-                #     textinfo='label+percent',
-                #     hovertemplate="%{label}: %{value:.1f}%<extra></extra>",
-                # ))
+                fig_donut = go.Figure(go.Pie(
+                    labels=['Factor-Driven Risk', 'Idiosyncratic Risk'],
+                    values=[factor_pct, residual_pct],
+                    hole=0.55,
+                    marker_colors=['royalblue', 'lightgray'],
+                    textinfo='label+percent',
+                    hovertemplate="%{label}: %{value:.1f}%<extra></extra>",
+                ))
 
-                # fig_donut.update_layout(
-                #     title=dict(text="Portfolio Variance Explained by FF3 Factors", font=dict(size=16)),
-                #     height=400,
-                #     paper_bgcolor='white',
-                # )
+                fig_donut.update_layout(
+                    title=dict(text="Portfolio Variance Explained by FF3 Factors", font=dict(size=16)),
+                    height=400,
+                    paper_bgcolor='white',
+                )
 
-                # col1, col2 = st.columns([1, 1])
-                # with col1:
-                #     st.plotly_chart(fig_donut, use_container_width=True)
-                # with col2:
-                #     st.write("")
-                #     st.write("")
-                #     st.write("")
-                #     st.metric("Factor-Driven Risk", f"{factor_pct:.1f}%",
-                #             help="% of portfolio variance explained by MKT, SMB, HML collectively")
-                #     st.metric("Idiosyncratic Risk", f"{residual_pct:.1f}%",
-                #             help="% of portfolio variance unexplained by the three factors")
-                #     st.metric("Annualized Portfolio Vol", f"{port_returns.std() * np.sqrt(12) * 100:.2f}%")
-                # st.caption(
-                #     "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
-                #     "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. <br>"
-                #     "Return streams do not account for short-term capital gains taxes or dividend reinvestment.",
-                #     unsafe_allow_html=True,
-                # )
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    st.plotly_chart(fig_donut, use_container_width=True)
+                with col2:
+                    st.write("")
+                    st.write("")
+                    st.write("")
+                    st.metric("Factor-Driven Risk", f"{factor_pct:.1f}%",
+                            help="% of portfolio variance explained by MKT, SMB, HML collectively")
+                    st.metric("Idiosyncratic Risk", f"{residual_pct:.1f}%",
+                            help="% of portfolio variance unexplained by the three factors")
+                    st.metric("Annualized Portfolio Vol", f"{port_returns.std() * np.sqrt(12) * 100:.2f}%")
+                st.caption(
+                    "⚠️ **Note:** Risk-adjusted metrics over short periods (e.g., 1 year) may not be reflective of long-run expected performance — "
+                    "a single favorable or unfavorable market regime can significantly skew Sharpe and Sortino. <br>"
+                    "Return streams do not account for short-term capital gains taxes or dividend reinvestment.",
+                    unsafe_allow_html=True,
+                )
 
         except Exception as e:
             st.error("Optimization failed!")
@@ -847,10 +869,9 @@ footer = """
 </style>
 
 <div class="footer">
-    <p>Developed by <b>Vincent Batten</b> & <b>Nate Songstad<b>| 
+    <p>Developed by <b>Vincent Batten</b> & <b>Nate Songstad<b> | 
     ✉ Email <a href="mailto:vincentbatten27@gmail.com?subject=Beta Optimization App Inquiry">vincentbatten27@gmail.com</a> | 
     <i>Original Logic by</i> <b>Johanan Pranesh</b><br>
-    Created alongside <b>Kshitij Bhandari</b><br>
     Sponsored by: <b>Jordan Weintraub</b></p>
 </div>
 """
