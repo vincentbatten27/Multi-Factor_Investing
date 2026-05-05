@@ -1089,18 +1089,25 @@ def new_run_with_backtest_mrebalance(inyears,outyears,betaA,betaB,betaC,stating_
         if(rebal_freq == 'm'):
             n_year_before_updated = str(pd.to_datetime(n_year_before) + relativedelta(months=k))
             n_year_after_updated = str(pd.to_datetime(n_year_after) + relativedelta(months=k))
-            start_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=36))
+            start_date11 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=36))
             end_date1 = str(pd.to_datetime(n_year_before_updated) + relativedelta(months=37))
             expected_betas.append([betaA,betaB,betaC])
             simulator(betaA,betaB,betaC,n_year_before_updated,n_year_after_updated,stating_budget*prev_month_perf,50,c_portf)
             rebalance_opt_weights.append(opt_portf_weights)
-            mperformance = out_of_sampless(start_date1,end_date1).copy()
+            mperformance = out_of_sampless(start_date11,end_date1).copy()
             snipped_perf = mperformance.iloc[1]
             if(k==0):
                 first_perf = mperformance.iloc[0]
                 noos1_new_performance = pd.concat([noos1_new_performance , first_perf.to_frame().T])
             prev_month_perf = snipped_perf['Optimized Portfolio'] * prev_month_perf
             noos1_new_performance = pd.concat([noos1_new_performance , snipped_perf.to_frame().T])
+        
+        
+        
+        
+        
+        
+        
         if(rebal_freq == 'drm'):
             n_year_before_updated = str(pd.to_datetime(n_year_before) + relativedelta(months=k))
             n_year_after_updated = str(pd.to_datetime(n_year_after) + relativedelta(months=k))
@@ -1771,7 +1778,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
             if(rebal_freq == 'y' or rebal_freq ==  'dry'):
                 oos1_new_performance=new_run_with_backtest_rebalance(in_years1,out_years,mbetaA,mbetaB,mbetaC,rebal_freq)
             if(rebal_freq == 'm' or rebal_freq == 'drm'):
-                oos1_new_performance = new_run_with_backtest_mrebalance(in_years1,out_years,mbetaA,mbetaB,mbetaC,starting_budget,rebal_freq,c_portf)
+                oos1_new_performance = new_run_with_backtest_mrebalance_front_end(in_years1,out_years,mbetaA,mbetaB,mbetaC,starting_budget,rebal_freq,c_portf, obj_key)
             if(rebal_freq == 'cv'):
                 oos1_new_performance = new_run_with_backtest_rebalance_cv(in_years1,out_years,mbetaA,mbetaB,mbetaC,'drm')
         else:
