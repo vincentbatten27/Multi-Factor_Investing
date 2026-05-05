@@ -632,7 +632,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
 
             with st.spinner("Running Monte Carlo simulation..."):
                 curr_weights = target_date.date()
-                if (obj_key is not None:)
+                if obj_key is not None:
                     end_sim = curr_weights - relativedelta(days=1)
                 else:
                     end_sim = 'rebalance'
