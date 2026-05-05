@@ -161,7 +161,7 @@ def get_betas():
         base_path = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(
             base_path,
-            f"Front_End_Strategies_Iteration_4_excess{obj_key}/rebal_explored_{obj_key}_{weights_opt_d.strftime('%Y-%m-%d')}.csv",
+            f"Front_End_Strategies_Iteration_4_excess{obj}/rebal_explored_{obj}_{weights_opt_d.strftime('%Y-%m-%d')}.csv",
         )
         df = pd.read_csv(path)
         best = df.nlargest(1, "reward").iloc[0]
@@ -240,7 +240,7 @@ st.divider()
 
 # =============================================================================
 # OPTIMIZATION FUNCTION
-# =============================================================================    
+# =============================================================================
 
 def final_visuala(ddfs, expected_betas=None, obj=None):
     import plotly.graph_objects as go
