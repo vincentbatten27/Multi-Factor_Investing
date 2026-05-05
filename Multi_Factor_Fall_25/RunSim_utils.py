@@ -1787,7 +1787,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
                 c_portf,
                 obj_key
             )
-            return oos1_new_performance, None, None expected_betas, rebalance_opt_weights
+            #return oos1_new_performance, None, None, expected_betas, rebalance_opt_weights
         elif rebal_freq == 'pre_drm':
             oos1_list, oos1_avg, oos1_y, expected_betas, rebalance_opt_weights = get_premade_mrebalance_front_end(
             out_years, obj_key, n_simulations
