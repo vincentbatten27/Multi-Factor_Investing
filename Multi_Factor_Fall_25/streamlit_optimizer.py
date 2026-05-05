@@ -666,8 +666,9 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # -----------------------------------------------------------------
                 st.subheader("Full Period Summary")
 
-                avg_contribs = (contrib_df+1).mean()
+                avg_contribs = contrib_df.sum()
                 total_port_return = port_returns.sum()
+                
                 hit_rates = (contrib_df > 0).mean() * 100
 
                 col1, col2, col3, col4 = st.columns(4)
@@ -762,6 +763,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # SECTION 4 — Variance Decomposition
                 # -----------------------------------------------------------------
                 st.subheader("Risk Attribution (Variance Decomposition)")
+                F = ff3_slice[["Mkt-RF", "SMB", "HML"]]
 
                 monthly_factor_var = []
                 for i in range(len(port_returns)):
