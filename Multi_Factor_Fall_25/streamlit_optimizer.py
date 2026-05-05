@@ -629,7 +629,6 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             with st.spinner("Running Monte Carlo simulation..."):
                 curr_weights = target_date.date()
                 end_sim = curr_weights - relativedelta(days=1)
-                st.write(f'{sim_key}')
                 oos1_list, oos1_avg, oos1_y, expected_betas, rebalance_opt_weights = (
                     monte_carlo_simulation(
                         num_runs,

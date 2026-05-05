@@ -1748,7 +1748,6 @@ price_monthly_data1,new_monthly_data1,indexgspc1,spy_yoy_tickers1):
     simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings,end,'m')
     return opt_portf_weights
 
-
 def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, starting_budget, rebal_freq,c_portf,price_monthly_data1,
                     new_monthly_data1,
                     indexgspc1,
@@ -1821,7 +1820,10 @@ def get_premade_mrebalance_front_end(os_years, obj, num_iteration):
     # Build expected_betas from first run's index (all runs share same dates)
     for date in results[0].index:
         file_date = (date - pd.DateOffset(days=1)).strftime('%Y-%m-%d')
-        rebal_path = SCRIPT_DIR / f"Front_End_Strategies_Iteration_3/{obj}/rebal_explored_{obj}_active_{file_date}.csv"
+        rebal_path = (
+            SCRIPT_DIR
+            / f"Front_End_Strategies_Iteration_4c_excess_surrogate/{obj}/rebal_explored_{obj}_{file_date}.csv"
+        )
         rebal_df = pd.read_csv(rebal_path)
         best = rebal_df.nlargest(1, 'reward').iloc[0]
         expected_betas.append([best['c1'], best['c2'], best['c3']])
