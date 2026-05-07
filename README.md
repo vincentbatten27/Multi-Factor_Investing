@@ -197,10 +197,6 @@ Data is sourced from WRDS, Stooq, and Alpha Vantage.
 
 # 👤 Authors
 
-**Johanan Anton Pranesh**
-*M.S. Financial Engineering '25, Lehigh University*
-*King Street Alumni | Quant Research | Data Science*
-[Website](https://johananantonpranesh.github.io/) • [LinkedIn](https://www.linkedin.com/in/johanan-anton-pranesh/) • [Email](mailto:johanananton@outlook.com)
 
 **Vincent Batten**
 *B.S. Finance '26 (Data Science and Probability & Statistics minors), Lehigh University* <br>
@@ -208,8 +204,13 @@ Data is sourced from WRDS, Stooq, and Alpha Vantage.
 [LinkedIn](https://www.linkedin.com/in/vincentbatten27/) • [Email](mailto:vincentbatten27@gmail.com)
 
 **Nate Songstad**
-*M.S. Financial Engineering '27, Lehigh University*
+*M.S. Financial Engineering '27, Lehigh University* <br>
 [LinkedIn](https://www.linkedin.com/in/nate-songstad/) • [Email](songstad.nathaniel@gmail.com)
+
+**Johanan Anton Pranesh**
+*M.S. Financial Engineering '25, Lehigh University*
+*King Street Alumni | Quant Research | Data Science*
+[Website](https://johananantonpranesh.github.io/) • [LinkedIn](https://www.linkedin.com/in/johanan-anton-pranesh/)
 
 ## Other Contributors
 
