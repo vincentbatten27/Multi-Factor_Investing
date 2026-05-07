@@ -203,8 +203,8 @@ Data is sourced from WRDS, Stooq, and Alpha Vantage.
 [Website](https://johananantonpranesh.github.io/) • [LinkedIn](https://www.linkedin.com/in/johanan-anton-pranesh/) • [Email](mailto:johanananton@outlook.com)
 
 **Vincent Batten**
-*B.S. Finance '26 (Data Science and Probability & Statistics minors), Lehigh University*
-*Investment Management | Data Science*
+*B.S. Finance '26 (Data Science and Probability & Statistics minors), Lehigh University* <br>
+*Investment Management | Data Science* <br>
 [LinkedIn](https://www.linkedin.com/in/vincentbatten27/) • [Email](mailto:vincentbatten27@gmail.com)
 
 **Nate Songstad**
