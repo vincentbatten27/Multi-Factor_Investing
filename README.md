@@ -207,13 +207,14 @@ Data is sourced from WRDS, Stooq, and Alpha Vantage.
 *Investment Management | Data Science*
 [LinkedIn](https://www.linkedin.com/in/vincentbatten27/) • [Email](mailto:vincentbatten27@gmail.com)
 
+**Nate Songstad**
+*M.S. Financial Engineering '27, Lehigh University*
+[LinkedIn](https://www.linkedin.com/in/nate-songstad/) • [Email](songstad.nathaniel@gmail.com)
+
 ## Other Contributors
 
 **Kshitij Bhandari**
 *M.S. Financial Engineering '26, Lehigh University*
-
-**Nate Songstad**
-*M.S. Financial Engineering '27, Lehigh University*
 
 ## Former Contributors
 
