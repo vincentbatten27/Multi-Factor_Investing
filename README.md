@@ -148,7 +148,6 @@ Multi_Factor_25_26/
 ├── streamlit_optimizer.py        # Streamlit front-end: inputs, optimization, Monte Carlo visualization
 ├── RunSim_utils.py               # Core simulation engine: LP optimizer, walk-forward backtest, all utility functions
 ├── run_sim_scheduler.py          # Scheduler for running the bandit algorithm across months (WIP)
-├── Run_Simulator_Messy.py        # Area for building and testing functions of Run simulator
 ├── RunSim_utils.ipynb            # Notebook version of RunSim_utils for development/debugging
 ├── Run simulator.ipynb           # Notebook for running and inspecting simulations interactively
 │
@@ -171,7 +170,7 @@ Multi_Factor_25_26/
 ├── Active_Strategy_CSVs/         # CSVs from active strategy runs (old)
 ├── Resampled_CSVs/               # CSVs from resampled backtest runs (old)
 ├── Resampled_Monthly/            # Monthly resampled output data (old)
-├── Reward_CSVs_Surrogate/        # Surrogate model reward CSVs used in dynamic rebalancing (old)
+├── Reward_CSVs_Surrogate/        # Surrogate model reward CSVs used in dynamic rebalancing
 │
 ├── SPY_Weights.xlsx              # SPY constituent weights
 ├── SPY_Ticker_Weights.csv        # Ticker-level SPY weights
@@ -180,9 +179,7 @@ Multi_Factor_25_26/
 ├── SPY_IV.csv                    # SPY implied volatility data
 ├── Nifty_50.csv                  # Nifty 50 constituent data (Indian market extension)
 ├── nifty_stocks_data.csv         # Nifty 50 stock return data
-├── nifty50_index_data.csv        # Nifty 50 index return data
-│
-└── Useless_csvs/                 # Deprecated or scratch output files
+└── nifty50_index_data.csv        # Nifty 50 index return data
 ```
 
 ---
