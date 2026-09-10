@@ -3,12 +3,11 @@ import pandas as pd
 import plotly.graph_objects as go
 from RunSim_utils import *
 import os
-
-
 from app_common import load_data
 
-price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
 st.set_page_config(page_title="Portfolio Constructor")
+
+price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
 
 st.title("Multi-Factor Investing")
 st.caption(
