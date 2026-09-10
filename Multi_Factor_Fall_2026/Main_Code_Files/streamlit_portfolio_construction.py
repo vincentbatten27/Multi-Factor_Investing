@@ -8,6 +8,7 @@ import os
 from app_common import load_data
 
 price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
+st.set_page_config(page_title="Portfolio Constructor")
 
 st.title("Multi-Factor Investing")
 st.caption(
