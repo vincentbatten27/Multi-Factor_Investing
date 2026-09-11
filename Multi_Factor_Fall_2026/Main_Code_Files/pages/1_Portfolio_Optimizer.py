@@ -127,7 +127,7 @@ if st.session_state.opt_holdings:
     opt_portfolio_weights = clean_df.set_index("Ticker")[["Weight"]]
     opt_portfolio_weights.rename(columns={"Weight": "New Weight"}, inplace=True)
 
-    df_extrap = optimal_weights_appended(opt_portfolio_weights, price_monthly_data, target_date)
+    df_extrap = optimal_weights_appended(opt_portfolio_weights, price_monthly_data)
     portf_ff3 = portoflio_ff3(df_extrap)
 
     mkt_ff3 = portf_ff3["Mkt-RF"]

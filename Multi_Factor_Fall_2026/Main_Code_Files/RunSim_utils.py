@@ -2388,8 +2388,9 @@ def rebalanced_optimal_weights_m(oos1_list,rebalance_opt_weights,price_monthly_d
 # In[149]:
 
 
-def optimal_weights_appended(opt_port, price_monthly_data, target_date):  
-    
+def optimal_weights_appended(opt_port, price_monthly_data):  
+    target_date = today.replace(day=1)
+    target_date = target_date.normalize()
     tickers_opt = opt_port.index.tolist()
     prices = extract_stock_data(price_monthly_data, tickers_opt, target_date-relativedelta(years=3), target_date)
     
