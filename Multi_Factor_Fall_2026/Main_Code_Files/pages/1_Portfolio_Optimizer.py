@@ -50,12 +50,18 @@ if uploaded_file is not None and not st.session_state.opt_file_loaded:
         else:
             uploaded_df = pd.read_csv(uploaded_file)
 
-        if "Ticker" not in uploaded_df.columns or "Value" not in uploaded_df.columns:
-            st.error("File must have 'Ticker' and 'Value' columns!")
+        if "Ticker" not in uploaded_df.columns or (
+            "Value" not in uploaded_df.columns and "Market Value" not in uploaded_df.columns
+        ):
+            st.error("File must have a 'Ticker' column and a 'Value' or 'Market Value' column!")
         else:
+            if "Value" not in uploaded_df.columns:
+                uploaded_df = uploaded_df.rename(columns={"Market Value": "Value"})
+
             uploaded_df["Ticker"] = uploaded_df["Ticker"].str.upper().str.strip()
             uploaded_df["Value"] = pd.to_numeric(uploaded_df["Value"], errors="coerce")
             uploaded_df = uploaded_df.dropna()
+
 
             valid_universe = set(new_monthly_data.columns)
             unknown = sorted(set(uploaded_df["Ticker"]) - valid_universe)
