@@ -105,22 +105,35 @@ st.header("Factor Exposure & Rebalancing Recommendations")
 st.info(
    'Find out your portfolio\'s Fama-French factor exposures and get recommendations for rebalancing. '
 )
-opt_portfolio_weights = pd.DataFrame([uploaded_file.set_index('Ticker')['Weight']]).T
-opt_portfolio_weights.rename(columns={'Weight': 'New Weight'}, inplace=True)
-df_extrap = optimal_weights_appended(opt_portfolio_weights)
 
-portf_ff3 = portoflio_ff3(df_extrap)
+if st.session_state.opt_holdings:
+    holdings_df = pd.DataFrame(st.session_state.opt_holdings)
 
-mkt_ff3 = portf_ff3['Mkt-RF']
-smb_ff3 = portf_ff3['SMB']
-hml_ff3 = portf_ff3['HML']
+    # drop tickers not in the data universe before running the regression
+    clean_df = holdings_df[
+        ~holdings_df["Ticker"].isin(st.session_state.opt_unknown_tickers)
+    ].copy()
 
-st.subheader("Portfolio FF3 Betas")
+    if "Weight" not in clean_df.columns:
+        clean_df["Weight"] = clean_df["Value"] / clean_df["Value"].sum()
 
-col1, col2, col3 = st.columns(3)
-col1.metric("Mkt-RF", f"{mkt_ff3:.3f}")
-col2.metric("SMB", f"{smb_ff3:.3f}")
-col3.metric("HML", f"{hml_ff3:.3f}")
+    opt_portfolio_weights = clean_df.set_index("Ticker")[["Weight"]]
+    opt_portfolio_weights.rename(columns={"Weight": "New Weight"}, inplace=True)
+
+    df_extrap = optimal_weights_appended(opt_portfolio_weights)
+    portf_ff3 = portoflio_ff3(df_extrap)
+
+    mkt_ff3 = portf_ff3["Mkt-RF"]
+    smb_ff3 = portf_ff3["SMB"]
+    hml_ff3 = portf_ff3["HML"]
+
+    st.subheader("Portfolio FF3 Betas")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Mkt-RF", f"{mkt_ff3:.3f}")
+    col2.metric("SMB", f"{smb_ff3:.3f}")
+    col3.metric("HML", f"{hml_ff3:.3f}")
+else:
+    st.info("Upload a CSV of your holdings to see your portfolio's factor exposures.")
 
 footer = """
 <style>

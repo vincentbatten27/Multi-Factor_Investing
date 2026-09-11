@@ -5,11 +5,10 @@ from RunSim_utils import *
 import os
 from app_common import load_data
 
-st.set_page_config(page_title="Portfolio Constructor")
 
 price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
 
-st.title("Multi-Factor Investing")
+st.title("Portfolio Constructor")
 st.caption(
     "Optimize portfolio weights to achieve target three Fama-French exposures from S&P 500 equity universe.<br>"
     "[ℹ️ Documentation](https://github.com/vincentbatten27/Multi-Factor_Investing/blob/main/README.md)",
