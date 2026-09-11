@@ -2389,6 +2389,7 @@ def rebalanced_optimal_weights_m(oos1_list,rebalance_opt_weights,price_monthly_d
 
 
 def optimal_weights_appended(opt_port, price_monthly_data):  
+    today= pd.Timestamp.now()
     target_date = today.replace(day=1)
     target_date = target_date.normalize()
     tickers_opt = opt_port.index.tolist()
