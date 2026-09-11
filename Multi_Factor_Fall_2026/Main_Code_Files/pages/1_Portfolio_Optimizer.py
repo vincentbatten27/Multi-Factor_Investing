@@ -103,7 +103,7 @@ st.divider()
 # =============================================================================
 st.header("Factor Exposure & Rebalancing Recommendations")
 st.info(
-   
+   'Find out your portfolio\'s Fama-French factor exposures and get recommendations for rebalancing. '
 )
 opt_portfolio_weights = pd.DataFrame([uploaded_file.set_index('Ticker')['Weight']]).T
 opt_portfolio_weights.rename(columns={'Weight': 'New Weight'}, inplace=True)
