@@ -103,10 +103,24 @@ st.divider()
 # =============================================================================
 st.header("Factor Exposure & Rebalancing Recommendations")
 st.info(
-    "🚧 **Coming soon** — this section will show your portfolio's current FF3 "
-    "exposures (MKT / SMB / HML) against a target, and recommend whether to hit "
-    "the target by reweighting existing holdings alone or by adding/dropping positions."
+   
 )
+opt_portfolio_weights = pd.DataFrame([uploaded_file.set_index('Ticker')['Weight']]).T
+opt_portfolio_weights.rename(columns={'Weight': 'New Weight'}, inplace=True)
+df_extrap = optimal_weights_appended(opt_portfolio_weights)
+
+portf_ff3 = portoflio_ff3(df_extrap)
+
+mkt_ff3 = portf_ff3['Mkt-RF']
+smb_ff3 = portf_ff3['SMB']
+hml_ff3 = portf_ff3['HML']
+
+st.subheader("Portfolio FF3 Betas")
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Mkt-RF", f"{mkt_ff3:.3f}")
+col2.metric("SMB", f"{smb_ff3:.3f}")
+col3.metric("HML", f"{hml_ff3:.3f}")
 
 footer = """
 <style>

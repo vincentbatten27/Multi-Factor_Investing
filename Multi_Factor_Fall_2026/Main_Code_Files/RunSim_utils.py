@@ -43,23 +43,12 @@ from alpha_vantage.timeseries import TimeSeries
 SCRIPT_DIR = Path(__file__).parent
 
 
+
+
 def extract_stock_data(df, tdickers, start, end):
-    """
-    Extract stock data for specific tickers between the start and end dates.
-
-    Parameters:
-    - df: pandas DataFrame with rows as dates (monthly) and columns as stock tickers.
-    - tickers: list of ti"ckers to extract data for.
-    - start: start date (YYYY-MM-DD) for the data extraction.
-    - end: end date (YYYY-MM-DD) for the data extraction.
-
-    Returns:
-    - pandas DataFrame with the specified tickers and date range.
-    """
-    # Ensure the date column is in datetime format
-    df.index = pd.to_datetime(df.index)
-    df.index=df.index.to_period('M').to_timestamp('D')
-    # Filter the DataFrame for the date range
+    # df.index = pd.to_datetime(df.index)
+    # df.index=df.index.to_period('M').to_timestamp('D')
+    # Filter the DataFrame for the date rane
     df_filtered = df.loc[start:end]
 
     # Select the tickers from the DataFrame
@@ -85,8 +74,8 @@ def extract_stock_data(df, tdickers, start, end):
                 print()
                # print(f"Column '{col}' could not be converted to float.")
     df_selected.interpolate(method='linear',inplace=True)
-    df_selected = df_selected.ffill()
-    df_selected = df_selected.bfill()
+    df_selected = df_selected.fillna(method='ffill')
+    df_selected = df_selected.fillna(method='bfill')
     return df_selected
 
 
@@ -1881,6 +1870,31 @@ def famafrenchreturns_FS():
     ff3_monthly_FS = ff3_monthly_FS.interpolate(method='linear')
 
 
+def portoflio_ff3(opt_portf): # input output from optimal_weights_appended
+    start_reg = opt_portf.index.min()
+    end_reg = opt_portf.index.max() 
+
+    rf = ff3_monthly.loc[start_reg:end_reg]["RF"]
+    rolling_excess = opt_portf.sub(rf,axis=0)
+    rebal_betas = pd.DataFrame()
+
+    for col in rolling_excess.columns:
+        # Set the dependent variable (Return of stock i)
+        y = rolling_excess[col]
+        # Set the independent variables (Fama French 3 Factors)
+        X = (ff3_monthly[['Mkt-RF','SMB','HML']].loc[start_reg:end_reg])
+        # Fit the multiple linear regression model
+        model = LinearRegression()
+        model.fit(X, y)
+        # Store the results in the DataFrame
+        rebal_betas[col] = [model.intercept_] + model.coef_.tolist()
+    rebal_betas = rebal_betas.T
+    rebal_betas.columns = ['Intercept','Mkt-RF','SMB','HML']
+    ff3_factors = rebal_betas.mul(opt_portf.iloc[-1], axis=0).sum()
+    ff3_factors = ff3_factors.iloc[1:]
+
+    return ff3_factors*100
+
 # In[142]:
 
 
@@ -2377,15 +2391,7 @@ def rebalanced_optimal_weights_m(oos1_list,rebalance_opt_weights,price_monthly_d
 def optimal_weights_appended(opt_port):  
     
     tickers_opt = opt_port.index.tolist()
-
-    prices = pd.read_csv(SCRIPT_DIR / 'daat.csv', parse_dates=['date'])
-    prices.drop(columns='PERMNO', inplace=True)
-    prices.drop(columns='RET', inplace=True)
-    prices.rename(columns={'date': 'Date', 'TICKER': 'Ticker'}, inplace=True)
-    prices.set_index('Date', inplace=True)
-    prices.index = pd.to_datetime(prices.index)
-    prices = prices.pivot_table(index='Date', columns='Ticker', values='PRC', aggfunc='first')
-    prices = extract_stock_data(prices, opt_port.index.tolist(), start_date, end_date)
+    prices = extract_stock_data(price_monthly_data, tickers_opt, target_date-relativedelta(years=3), target_date)
     
     # if value is NA, averages it with the before and after, as it would be too difficult to manually enter it if we scale up the use of this
     prices = prices.interpolate(method = 'linear', limit_direction = 'both') 
