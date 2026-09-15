@@ -165,7 +165,7 @@ def download_with_retry(tickers, start, end, retries=3, delay=5):
 # In[95]:
 
 
-def famafrenchreturns():
+def famafrenchreturns(new_monthly_data):
     global ff3_monthly
     # Fama French Monthly Returns Data using getFamaFrenchFactors module
     ff3_monthly = gff.famaFrench3Factor(frequency='m')

@@ -32,7 +32,7 @@ def load_data():
     new_monthly_data["Date"] = pd.to_datetime(new_monthly_data["Date"])
     new_monthly_data = new_monthly_data.set_index("Date")
     new_monthly_data = new_monthly_data.apply(pd.to_numeric, errors="coerce")
-    ff3_monthly = famafrenchreturns()
+    ff3_monthly = famafrenchreturns(new_monthly_data)
     indexgspc1, spy_yoy_tickers1 = run_sp500_data()
 
     return price_monthly_data, new_monthly_data,ff3_monthly, indexgspc1, spy_yoy_tickers1
