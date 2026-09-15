@@ -17,7 +17,7 @@ RunSim_utils.py.
 """
 import streamlit as st
 import pandas as pd
-from RunSim_utils import run_sp500_data, SCRIPT_DIR
+from RunSim_utils import run_sp500_data, famafrenchreturns,  SCRIPT_DIR
 
 
 @st.cache_data
