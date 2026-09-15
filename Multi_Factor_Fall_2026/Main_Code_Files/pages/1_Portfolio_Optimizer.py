@@ -131,7 +131,7 @@ if st.session_state.opt_holdings:
     df_extrap = optimal_weights_appended(opt_portfolio_weights, price_monthly_data)
     portf_ff3 = portoflio_ff3(df_extrap, new_monthly_data, ff3_monthly)
     
-    if isinstace(port_ff3, str):
+    if isinstance(port_ff3, str):
         st.warning(portf_ff3)
     else:
         mkt_beta = portf_ff3["Mkt-RF"]
