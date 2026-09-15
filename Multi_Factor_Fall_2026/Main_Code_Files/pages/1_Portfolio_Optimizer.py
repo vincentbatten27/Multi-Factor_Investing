@@ -7,6 +7,11 @@ import statsmodels.api as sm
 st.set_page_config(page_title="Portfolio Optimizer")
 
 price_monthly_data, new_monthly_data, ff3_monthly, indexgspc1, spy_yoy_tickers1 = load_data()
+today = pd.Timestamp.now()# -relativedelta(days=10)  # ensure we have data for the current month if we're early in the month
+target_date = today.replace(day=1)
+target_date = target_date.normalize()
+curr_weights = target_date.date()
+weights_opt_d = curr_weights - relativedelta(days=1)
 
 st.title("Portfolio Optimizer")
 st.caption(
