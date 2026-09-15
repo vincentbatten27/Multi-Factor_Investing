@@ -88,8 +88,15 @@ if uploaded_file is not None and not st.session_state.opt_file_loaded:
             st.session_state.opt_needs_manual_entry = not (has_value or has_weight)  # NEW
             st.success(f"✅ Loaded {len(st.session_state.opt_holdings)} holdings")
             st.rerun()
+            
     except Exception as e:
         st.error(f"Error reading file: {str(e)}")
+
+if uploaded_file is None:
+    st.session_state.opt_file_loaded = False
+    st.session_state.opt_holdings = []
+    st.session_state.opt_unknown_tickers = []
+    st.session_state.opt_needs_manual_entry = False
 
 if st.session_state.opt_holdings:
     holdings_df = pd.DataFrame(st.session_state.opt_holdings)
