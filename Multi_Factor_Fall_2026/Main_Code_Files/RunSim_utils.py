@@ -49,10 +49,16 @@ def extract_stock_data(df, tdickers, start, end):
     # df.index = pd.to_datetime(df.index)
     # df.index=df.index.to_period('M').to_timestamp('D')
     # Filter the DataFrame for the date rane
+    valid_tickers = [t for t in tdickers if t in df.columns]
+    dropped = sorted(set(tdickers) - set(valid_tickers))
+    if dropped:
+        print(f"Dropping {len(dropped)} tickers not in monthly_data: {dropped}")
+
     df_filtered = df.loc[start:end]
 
     # Select the tickers from the DataFrame
-    df_selected = df_filtered[tdickers]
+    print(f"Extracting data for tickers: {valid_tickers}")
+    df_selected = df_filtered[valid_tickers]
     #df_selected=df_selected.loc[:, df_selected.isna().sum() <= 0].dropna()
     # df_selected.interpolate(method='linear',inplace=True)
     df_selected.index = pd.to_datetime(df_selected.index)
