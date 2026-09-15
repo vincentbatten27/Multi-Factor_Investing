@@ -128,17 +128,25 @@ if st.session_state.opt_holdings:
     opt_portfolio_weights.rename(columns={"Weight": "New Weight"}, inplace=True)
 
     df_extrap = optimal_weights_appended(opt_portfolio_weights, price_monthly_data)
-    portf_ff3 = portoflio_ff3(df_extrap)
+    portf_ff3 = portoflio_ff3(df_extrap, new_monthly_data, ff3_monthly)
+    
+    if isinstace(port_ff3, str):
+        st.warning(portf_ff3)
+    else:
+        mkt_beta = portf_ff3["Mkt-RF"]
+        smb_beta = portf_ff3["SMB"]
+        hml_beta = portf_ff3["HML"]
+        mkt_se = portf_ff3["Mkt-RF_SE"]
+        smb_se = portf_ff3["SMB_SE"]
+        hml_se = portf_ff3["HML_SE"]
+        ff3_r2 = portf_ff3["R_squared"]
 
-    mkt_ff3 = portf_ff3["Mkt-RF"]
-    smb_ff3 = portf_ff3["SMB"]
-    hml_ff3 = portf_ff3["HML"]
-
-    st.subheader("Portfolio FF3 Betas")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Mkt-RF", f"{mkt_ff3:.3f}")
-    col2.metric("SMB", f"{smb_ff3:.3f}")
-    col3.metric("HML", f"{hml_ff3:.3f}")
+        st.subheader("Portfolio FF3 Betas")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Mkt-RF", f"{mkt_beta:.3f}", help=f"± {mkt_se:.3f} SE")
+        col2.metric("SMB", f"{smb_beta:.3f}", help=f"± {smb_se:.3f} SE")
+        col3.metric("HML", f"{hml_beta:.3f}", help=f"± {hml_se:.3f} SE")
+        col4.metric("R²", f"{ff3_r2:.3f}", help="Share of monthly portfolio return variance explained by the 3 factors")
 else:
     st.info("Upload a CSV of your holdings to see your portfolio's factor exposures.")
 

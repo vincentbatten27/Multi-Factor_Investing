@@ -1869,31 +1869,63 @@ def famafrenchreturns_FS():
     ff3_monthly_FS = ff3_monthly_FS.asfreq('MS')  
     ff3_monthly_FS = ff3_monthly_FS.interpolate(method='linear')
 
+import statsmodels.api as sm
 
-def portoflio_ff3(opt_portf): # input output from optimal_weights_appended
+def portoflio_ff3(opt_portf, new_monthly_data, ff3_monthly): # input output from optimal_weights_appended
     start_reg = opt_portf.index.min()
     end_reg = opt_portf.index.max() 
 
     rf = ff3_monthly.loc[start_reg:end_reg]["RF"]
-    rolling_excess = opt_portf.sub(rf,axis=0)
+    rolling_excess = new_monthly_data.sub(rf, axis=0)
     rebal_betas = pd.DataFrame()
+    current_tickers = opt_portf.columns.tolist()
+    beta_monthly_data = rolling_excess[current_tickers]
+    beta_monthly_data = beta_monthly_data.loc[start_reg:end_reg]
 
-    for col in rolling_excess.columns:
+    df_count = 0
+    valid_tickers = []
+    for col in beta_monthly_data.columns:
         # Set the dependent variable (Return of stock i)
-        y = rolling_excess[col]
+        y = beta_monthly_data[col]
+        if y.isna().any():
+            df_count += 1
+            continue
         # Set the independent variables (Fama French 3 Factors)
-        X = (ff3_monthly[['Mkt-RF','SMB','HML']].loc[start_reg:end_reg])
+        X = ff3_monthly[['Mkt-RF', 'SMB', 'HML']].loc[start_reg:end_reg]
         # Fit the multiple linear regression model
         model = LinearRegression()
+        assert X.index.equals(y.index), f"{col}: date mismatch between factors and returns"
         model.fit(X, y)
         # Store the results in the DataFrame
         rebal_betas[col] = [model.intercept_] + model.coef_.tolist()
+        valid_tickers.append(col)
+
     rebal_betas = rebal_betas.T
-    rebal_betas.columns = ['Intercept','Mkt-RF','SMB','HML']
+    rebal_betas.columns = ['Intercept', 'Mkt-RF', 'SMB', 'HML']
     ff3_factors = rebal_betas.mul(opt_portf.iloc[-1], axis=0).sum()
     ff3_factors = ff3_factors.iloc[1:]
 
-    return ff3_factors*100
+    if df_count > (.1 * len(opt_portf.columns)):
+        return 'More than 10% of the tickers have insufficient data for regression. Please check the input data.'
+
+    # --- Portfolio-level regression, run once on the actual weighted return series ---
+    # (only the tickers that cleared the NaN check above, same set used in ff3_factors)
+    port_return = (new_monthly_data[valid_tickers] * opt_portf[valid_tickers]).sum(axis=1)
+    port_excess = port_return.loc[start_reg:end_reg] - rf
+
+    X_port = sm.add_constant(ff3_monthly[['Mkt-RF', 'SMB', 'HML']].loc[start_reg:end_reg])
+    assert X_port.index.equals(port_excess.index), "portfolio-level date mismatch"
+    port_model = sm.OLS(port_excess, X_port).fit()
+
+    se = port_model.bse[['Mkt-RF', 'SMB', 'HML']]
+    se.index = [f"{f}_SE" for f in se.index]
+
+    result = pd.concat([
+        round(ff3_factors, 4),
+        round(se, 4),
+        pd.Series({'R_squared': round(port_model.rsquared, 4)})
+    ])
+    return result
 
 # In[142]:
 
