@@ -2426,25 +2426,19 @@ def rebalanced_optimal_weights_m(oos1_list,rebalance_opt_weights,price_monthly_d
 
 
 def optimal_weights_appended(opt_port, price_monthly_data):  
-    today= pd.Timestamp.now()
-    target_date = today.replace(day=1)
-    target_date = target_date.normalize()
+    
     tickers_opt = opt_port.index.tolist()
     prices = extract_stock_data(price_monthly_data, tickers_opt, target_date-relativedelta(years=3), target_date)
     
-    # if value is NA, averages it with the before and after, as it would be too difficult to manually enter it if we scale up the use of this
-    prices = prices.interpolate(method = 'linear', limit_direction = 'both') 
-    base_prices = prices.iloc[0]
+    prices = prices.interpolate(method='linear', limit_direction='both')
+    base_prices = prices.iloc[-1]   # anchor at the MOST RECENT date, not the earliest
     holding_values = pd.DataFrame(index=prices.index, columns=prices.columns)
-    for tickers_opt in prices.columns:
-        weight_opt = opt_port.loc[tickers_opt].iloc[0]
-        # (price / price_base) * initial_weight.
-        holding_values[tickers_opt] = (prices[tickers_opt] / base_prices[tickers_opt]) * weight_opt
+    for ticker in prices.columns:
+        weight_opt = opt_port.loc[ticker].iloc[0]
+        # (price_t / price_today) * today's weight → backcast implied weight at each past date
+        holding_values[ticker] = (prices[ticker] / base_prices[ticker]) * weight_opt
 
-    # calc total portfolio value for each month.
     portfolio_value = holding_values.sum(axis=1)
-    
-    # normalize the values
     opt_portfolio_weights_appended = holding_values.div(portfolio_value, axis=0)
     return opt_portfolio_weights_appended
 
