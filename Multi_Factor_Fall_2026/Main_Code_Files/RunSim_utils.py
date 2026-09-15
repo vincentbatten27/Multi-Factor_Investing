@@ -179,6 +179,7 @@ def famafrenchreturns(new_monthly_data):
     ff3_monthly = pd.concat([ff3_monthly,est_df])
     return ff3_monthly
 
+
 def estimate_ff3_from_holdings(new_monthly_data, last_known_date, ff3_source):
     # Filter for dates after the last known date
     returns_subset = new_monthly_data[new_monthly_data.index > last_known_date].copy()
