@@ -52,18 +52,27 @@ if uploaded_file is not None and not st.session_state.opt_file_loaded:
         else:
             uploaded_df = pd.read_csv(uploaded_file)
 
-        if "Ticker" not in uploaded_df.columns or (
-            "Value" not in uploaded_df.columns and "Market Value" not in uploaded_df.columns
-        ):
-            st.error("File must have a 'Ticker' column and a 'Value' or 'Market Value' column!")
+        if "Ticker" not in uploaded_df.columns:
+            st.error("File must have a 'Ticker' column!")
         else:
-            if "Value" not in uploaded_df.columns:
+            has_value = "Value" in uploaded_df.columns or "Market Value" in uploaded_df.columns
+            has_weight = "Weight" in uploaded_df.columns
+
+            if "Market Value" in uploaded_df.columns and "Value" not in uploaded_df.columns:
                 uploaded_df = uploaded_df.rename(columns={"Market Value": "Value"})
 
             uploaded_df["Ticker"] = uploaded_df["Ticker"].str.upper().str.strip()
-            uploaded_df["Value"] = pd.to_numeric(uploaded_df["Value"], errors="coerce")
-            uploaded_df = uploaded_df.dropna()
 
+            if has_value:
+                uploaded_df["Value"] = pd.to_numeric(uploaded_df["Value"], errors="coerce")
+                uploaded_df = uploaded_df.dropna(subset=["Ticker", "Value"])
+            elif has_weight:
+                uploaded_df["Weight"] = pd.to_numeric(uploaded_df["Weight"], errors="coerce")
+                uploaded_df = uploaded_df.dropna(subset=["Ticker", "Weight"])
+            else:
+                # no Value / Market Value / Weight column at all — leave it blank,
+                # the manual-entry sliders below will fill in st.session_state.opt_holdings
+                uploaded_df = uploaded_df.dropna(subset=["Ticker"])
 
             valid_universe = set(new_monthly_data.columns)
             unknown = sorted(set(uploaded_df["Ticker"]) - valid_universe)
@@ -71,38 +80,41 @@ if uploaded_file is not None and not st.session_state.opt_file_loaded:
             st.session_state.opt_holdings = uploaded_df.to_dict("records")
             st.session_state.opt_file_loaded = True
             st.session_state.opt_unknown_tickers = unknown
+            st.session_state.opt_needs_manual_entry = not (has_value or has_weight)  # NEW
             st.success(f"✅ Loaded {len(st.session_state.opt_holdings)} holdings")
             st.rerun()
     except Exception as e:
         st.error(f"Error reading file: {str(e)}")
 
-if uploaded_file is None:
-    st.session_state.opt_file_loaded = False
-
 if st.session_state.opt_holdings:
     holdings_df = pd.DataFrame(st.session_state.opt_holdings)
+
+    if st.session_state.get("opt_needs_manual_entry"):
+        st.write("**No Value or Weight column found — enter a total portfolio value:**")
+        total_value = st.number_input(
+            "Total Portfolio Value ($)",
+            min_value=0.0, value=100000.0, step=1000.0,
+            key="opt_manual_total_value",
+        )
+        n = len(holdings_df)
+        holdings_df["Value"] = total_value / n  # equal-weight split across all holdings
+        st.session_state.opt_holdings = holdings_df.to_dict("records")
+
     st.write("**Current Portfolio:**")
     st.dataframe(holdings_df, hide_index=True, width="stretch")
 
-    total_value = holdings_df["Value"].sum()
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Portfolio Value", f"${total_value:,.2f}")
-    col2.metric("Number of Holdings", len(holdings_df))
-    col3.metric("Unrecognized Tickers", len(st.session_state.opt_unknown_tickers))
-
-    if st.session_state.opt_unknown_tickers:
-        st.warning(
-            "These tickers aren't in the current data universe and will be "
-            f"ignored: {', '.join(st.session_state.opt_unknown_tickers)}"
-        )
-
-    if st.button("🗑️ Clear Portfolio"):
-        st.session_state.opt_holdings = []
-        st.session_state.opt_file_loaded = False
-        st.session_state.opt_unknown_tickers = []
-        st.rerun()
-else:
-    st.info("No portfolio uploaded yet. Will populate once you upload a file above.")
+    if "Value" in holdings_df.columns:
+        total_value = holdings_df["Value"].sum()
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Portfolio Value", f"${total_value:,.2f}")
+        col2.metric("Number of Holdings", len(holdings_df))
+        col3.metric("Unrecognized Tickers", len(st.session_state.opt_unknown_tickers))
+    else:
+        total_weight = holdings_df["Weight"].sum()
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Weight", f"{total_weight:.1%}")
+        col2.metric("Number of Holdings", len(holdings_df))
+        col3.metric("Unrecognized Tickers", len(st.session_state.opt_unknown_tickers))
 
 st.divider()
 
