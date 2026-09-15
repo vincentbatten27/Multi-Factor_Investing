@@ -1869,8 +1869,6 @@ def famafrenchreturns_FS():
     ff3_monthly_FS = ff3_monthly_FS.asfreq('MS')  
     ff3_monthly_FS = ff3_monthly_FS.interpolate(method='linear')
 
-import statsmodels.api as sm
-
 def portoflio_ff3(opt_portf, new_monthly_data, ff3_monthly): # input output from optimal_weights_appended
     start_reg = opt_portf.index.min()
     end_reg = opt_portf.index.max() 
