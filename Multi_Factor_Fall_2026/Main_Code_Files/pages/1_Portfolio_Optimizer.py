@@ -6,7 +6,7 @@ import statsmodels.api as sm
 
 st.set_page_config(page_title="Portfolio Optimizer")
 
-price_monthly_data, new_monthly_data, indexgspc1, spy_yoy_tickers1 = load_data()
+price_monthly_data, new_monthly_data, ff3_monthly, indexgspc1, spy_yoy_tickers1 = load_data()
 
 st.title("Portfolio Optimizer")
 st.caption(
