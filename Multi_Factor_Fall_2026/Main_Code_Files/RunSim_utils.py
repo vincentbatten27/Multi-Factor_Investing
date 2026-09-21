@@ -181,77 +181,33 @@ def famafrenchreturns(new_monthly_data):
     # Keeping Only the Dates in the monthly_data
     ff3_monthly = ff3_monthly.reindex(new_monthly_data.index).dropna()
     # Keeping Only the Dates in the monthly_data
-    est_df = estimate_ff3_from_holdings(new_monthly_data, ff3_monthly.index[-1], ff3_monthly)
+    est_df = estimate_ff3_from_holdings(ff3_monthly)
     ff3_monthly = pd.concat([ff3_monthly,est_df])
     return ff3_monthly
 
 
-def estimate_ff3_from_holdings(new_monthly_data, last_known_date, ff3_source):
+def estimate_ff3_from_holdings(ff3_source):
     # Filter for dates after the last known date
-    returns_subset = new_monthly_data[new_monthly_data.index > last_known_date].copy()
-    
-    if returns_subset.empty:
-        return None
-    
-    results = []
-    
-    # Get the last available RF rate as a fallback
-    last_rf = ff3_source['RF'].iloc[-1]
-    
-    for date, row in returns_subset.iterrows():
-        r = row.dropna()
-        if r.empty:
-            continue
-            
-        # --- [NEW] Get the RF Rate ---
-        # Try to find the exact date in your ff3_monthly data
-        if date in ff3_source.index:
-            rf = ff3_source.loc[date, 'RF']
-        else:
-            rf = last_rf # Use latest known rate if predicting for future dates
-        
-        n = len(r)
-        tickers = r.index.tolist()
-        hist = new_monthly_data[tickers].loc[:date].iloc[:-1]
-        
-        if hist.empty:
-            continue
+    config = {"api_key": os.getenv("TIINGO_API_KEY"),"session": True}
+    client = TiingoClient(config)
+    indeces = ["VTI", "BIL", "IWM", "OEF", "IWD", "IWF"]  # 6 total: market, RF proxy, small, large, value, growth
 
-        cum_ret = hist.add(1).prod() - 1
-        size_rank = cum_ret.rank(ascending=True) 
-
-        if len(hist) >= 12:
-            prior_12m = hist.iloc[-12:].add(1).prod() - 1
-        else:
-            prior_12m = cum_ret 
-            
-        value_rank = prior_12m.rank(ascending=True) 
-        
-        small = r[size_rank <= n/3].mean()
-        big   = r[size_rank >= 2*n/3].mean()
-        smb   = small - big
-        
-        high  = r[value_rank <= n/3].mean()
-        low   = r[value_rank >= 2*n/3].mean()
-        hml   = high - low
-
-        # --- [ADJUSTED] Mkt-RF Calculation ---
-        # Excess market return = Average stock return - Risk Free Rate
-        mkt_rf = r.mean() - rf 
-        
-        results.append({
-            'Date':   date,
-            'Mkt-RF': mkt_rf,
-            'SMB':    smb,
-            'HML':    hml,
-            'RF':     rf   # Adding the RF to the output for completeness
-        })
-    
-    if not results:
-        return None
-        
-    est = pd.DataFrame(results).set_index('Date')
-    return est
+    px = client.get_dataframe(indeces, frequency="monthly",
+                            startDate=ff3_monthly.index.max(), endDate=target_date, metric_name="adjClose")
+    px.index = pd.to_datetime(px.index)
+    px.index = px.index.to_period("M").to_timestamp()
+    ret = px.pct_change().dropna()
+    mkt_rf = ret["VTI"] - ret["BIL"]   # market proxy minus risk-free proxy
+    smb = ret["IWM"] - ret["OEF"]      # small minus large
+    hml = ret["IWD"] - ret["IWF"]      # value minus growth
+    est_ff3 = pd.DataFrame({
+        "Mkt-RF": mkt_rf,
+        "SMB": smb,
+        "HML": hml,
+        "RF": ret["BIL"]
+    })
+    est_ff3 = pd.concat([ff3_monthly,est_ff3])
+    return est_ff3
 # In[96]:
 
 
