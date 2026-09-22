@@ -24,6 +24,22 @@ st.caption(
 st.divider()
 
 # =============================================================================
+# INPUT: Total Portfolio Value
+# =============================================================================
+st.header("Total Portfolio Value")
+
+total_value = st.number_input(
+    "Total Portfolio Value ($)",
+    min_value=1000.0,
+    value=1000000.0,
+    step=10000.0,
+    format="%.2f",
+    key="opt_total_value",
+)
+
+st.divider()
+
+# =============================================================================
 # INPUT: Upload Current Portfolio
 # =============================================================================
 st.header("Upload Your Portfolio")
@@ -98,17 +114,13 @@ if uploaded_file is None:
     st.session_state.opt_holdings = []
     st.session_state.opt_unknown_tickers = []
     st.session_state.opt_needs_manual_entry = False
+    st.session_state.opt_results = None
 
 if st.session_state.opt_holdings:
     holdings_df = pd.DataFrame(st.session_state.opt_holdings)
 
     if st.session_state.get("opt_needs_manual_entry"):
-        st.write("**No Value or Weight column found — enter a total portfolio value:**")
-        total_value = st.number_input(
-            "Total Portfolio Value ($)",
-            min_value=0.0, value=100000.0, step=1000.0,
-            key="opt_manual_total_value",
-        )
+        st.caption("No Value or Weight column found — splitting the Total Portfolio Value above equally across holdings.")
         n = len(holdings_df)
         holdings_df["Value"] = total_value / n  # equal-weight split across all holdings
         st.session_state.opt_holdings = holdings_df.to_dict("records")
@@ -117,9 +129,9 @@ if st.session_state.opt_holdings:
     st.dataframe(holdings_df, hide_index=True, width="stretch")
 
     if "Value" in holdings_df.columns:
-        total_value = holdings_df["Value"].sum()
+        holdings_value = holdings_df["Value"].sum()
         col1, col2, col3 = st.columns(3)
-        col1.metric("Total Portfolio Value", f"${total_value:,.2f}")
+        col1.metric("Uploaded Holdings Value", f"${holdings_value:,.2f}")
         col2.metric("Number of Holdings", len(holdings_df))
         col3.metric("Unrecognized Tickers", len(st.session_state.opt_unknown_tickers))
     else:
@@ -139,6 +151,7 @@ st.info(
    'Find out your portfolio\'s Fama-French factor exposures and get recommendations for rebalancing. '
 )
 
+curr_ff3 = None
 if st.session_state.opt_holdings:
     holdings_df = pd.DataFrame(st.session_state.opt_holdings)
 
@@ -159,6 +172,7 @@ if st.session_state.opt_holdings:
     if isinstance(portf_ff3, str):
         st.warning(portf_ff3)
     else:
+        curr_ff3 = portf_ff3
         mkt_beta = portf_ff3["Mkt-RF"]
         smb_beta = portf_ff3["SMB"]
         hml_beta = portf_ff3["HML"]
@@ -310,7 +324,7 @@ else:
                 else None
             )
             try:
-                results_df, target_date = optimize_portfolio(
+                results_df, opt_date = optimize_portfolio(
                     total_value=total_value,
                     constrained_holdings=constrained_holdings,
                     target_mkt=target_mkt,
@@ -319,12 +333,95 @@ else:
                     max_tickers=max_tickers,
                     turnover_cap=turnover_cap,
                 )
+                # FF3 of the new portfolio — same method/window as the current portfolio's betas above
+                new_w = results_df[["Weight"]].rename(columns={"Weight": "New Weight"})
+                new_extrap = optimal_weights_appended(new_w, price_monthly_data, target_date)
+                new_ff3 = portoflio_ff3(new_extrap, new_monthly_data, ff3_monthly)
+
+                st.session_state.opt_results = {
+                    "weights": results_df,
+                    "date": opt_date,
+                    "ff3": new_ff3,
+                    "targets": {"Mkt-RF": target_mkt, "SMB": target_smb, "HML": target_hml},
+                    "total_value": total_value,
+                }
                 st.success(
-                    f"Optimization Complete — using data as of **{target_date.strftime('%B %Y')}**. Results Below:"
+                    f"Optimization Complete — using data as of **{opt_date.strftime('%B %Y')}**. Results Below:"
                 )
             except Exception as e:
+                st.session_state.opt_results = None
                 st.error(f"Optimization failed: {e}")
                 st.exception(e)
+
+    # =============================================================================
+    # RESULTS (kept in session state so they survive reruns, e.g. the download button)
+    # =============================================================================
+    res = st.session_state.get("opt_results")
+    if res is not None:
+        results_df = res["weights"]
+        res_value = res["total_value"]
+
+        # ---- New portfolio FF3 betas vs target (and current) ----
+        st.divider()
+        st.header("New Portfolio FF3 Betas")
+        new_ff3 = res["ff3"]
+        if isinstance(new_ff3, str):
+            st.warning(new_ff3)
+        else:
+            col1, col2, col3, col4 = st.columns(4)
+            for col, f in zip([col1, col2, col3], ["Mkt-RF", "SMB", "HML"]):
+                curr_txt = f" | Current: {curr_ff3[f]:.3f}" if curr_ff3 is not None else ""
+                col.metric(
+                    f,
+                    f"{new_ff3[f]:.3f}",
+                    delta=f"{new_ff3[f] - res['targets'][f]:+.3f} vs target",
+                    delta_color="off",
+                    help=f"Target: {res['targets'][f]:.2f}{curr_txt} | ± {new_ff3[f + '_SE']:.3f} SE",
+                )
+            col4.metric("R²", f"{new_ff3['R_squared']:.3f}", help="Share of monthly portfolio return variance explained by the 3 factors")
+
+        # ---- Recommended weights: current vs new ----
+        st.divider()
+        st.header("Recommended Portfolio Weights")
+
+        curr_df = holdings_df[~holdings_df["Ticker"].isin(st.session_state.opt_unknown_tickers)]
+        curr_w = curr_df.set_index("Ticker")["Weight"]
+
+        display_df = pd.DataFrame({"New Weight": results_df["Weight"]}).join(
+            curr_w.rename("Current Weight"), how="outer"
+        ).fillna(0.0)
+        display_df["Change"] = display_df["New Weight"] - display_df["Current Weight"]
+        display_df["Status"] = "Reweighted"
+        display_df.loc[display_df["Current Weight"] == 0, "Status"] = "Added"
+        display_df.loc[display_df["New Weight"] == 0, "Status"] = "Dropped"
+        display_df["Value $"] = (display_df["New Weight"] * res_value).apply(lambda x: f"${x:,.2f}")
+        for c in ["New Weight", "Current Weight", "Change"]:
+            display_df[c + " %"] = (display_df[c] * 100).round(2)
+        display_df = display_df.sort_values("New Weight", ascending=False)
+        display_df.index.name = "Ticker"
+
+        st.dataframe(
+            display_df[["Status", "Current Weight %", "New Weight %", "Change %", "Value $"]],
+            hide_index=False, width="stretch", height=500,
+        )
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Positions", int((display_df["New Weight"] > 0).sum()))
+        col2.metric("Added", int((display_df["Status"] == "Added").sum()))
+        col3.metric("Dropped", int((display_df["Status"] == "Dropped").sum()))
+        col4.metric("Turnover", f"{display_df['Change'].abs().sum() / 2:.1%}",
+                    help="One-way turnover: sum of |change in weight| / 2")
+
+        csv = display_df[["Status", "Current Weight", "New Weight", "Change"]].assign(
+            Value=display_df["New Weight"] * res_value
+        ).to_csv(index=True)
+        st.download_button(
+            "Download Rebalanced Weights (CSV)",
+            data=csv,
+            file_name="ff3_rebalanced_weights.csv",
+            mime="text/csv",
+            width="stretch",
+        )
   
 
 footer = """
