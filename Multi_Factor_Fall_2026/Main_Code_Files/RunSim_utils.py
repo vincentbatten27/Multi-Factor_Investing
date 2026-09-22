@@ -436,7 +436,9 @@ def others():
     opt_weights = pd.DataFrame([v.varValue for v in index.variables() if v.varValue != 0 and str(v.name)[0] == 'W'], index = [str(v.name) for v in index.variables() if v.varValue != 0 and str(v.name)[0] == 'W'] , columns = ['Optimal'])
     opt_weights.style.format('{:,.2%}'.format)
     global weights_new
-    weights_new = pd.DataFrame([v.varValue for v in index.variables() if str(v.name[0]) == 'W'], index = [str(v.name).split('_')[1] for v in index.variables() if str(v.name[0]) == 'W'] , columns = ['New Weights'])
+    # build from wei directly (avoids PuLP name mangling, e.g. '-' -> '_'); tickers outside I (max_tickers) get 0
+    weights_new = pd.DataFrame({'New Weights': {i: wei[i].varValue for i in wei}})
+    weights_new = weights_new.reindex(monthly_data.columns[:-1], fill_value=0)
     global weights
     weights = pd.DataFrame(np.zeros((len(monthly_data.columns[:-1]),3)), index=monthly_data.columns[:-1], columns=['PORTFOLIO Weights','Difference','New Weights'])
     for t in monthly_data.columns[:-1]:
