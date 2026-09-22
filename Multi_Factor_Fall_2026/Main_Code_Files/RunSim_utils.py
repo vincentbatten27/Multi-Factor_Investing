@@ -1186,7 +1186,7 @@ def new_run_with_backtest_mrebalance_front_end(
                         c_portf,
                         t1,
                         rebal_freq,
-                        max_tickers
+                        max_tickers,
                         turnover_pct,
                     )
                     rebalance_opt_weights.append(opt_portf_weights)
