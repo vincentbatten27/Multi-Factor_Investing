@@ -85,7 +85,7 @@ if uploaded_file is not None and not st.session_state.opt_file_loaded:
             st.session_state.opt_holdings = uploaded_df.to_dict("records")
             st.session_state.opt_file_loaded = True
             st.session_state.opt_unknown_tickers = unknown
-            st.session_state.opt_needs_manual_entry = not (has_value or has_weight)  # NEW
+            st.session_state.opt_needs_manual_entry = not (has_value)  # NEW
             st.success(f"✅ Loaded {len(st.session_state.opt_holdings)} holdings")
             st.rerun()
             
@@ -175,6 +175,144 @@ if st.session_state.opt_holdings:
 else:
     st.info("Upload a CSV of your holdings to see your portfolio's factor exposures.")
 
+
+    st.divider()
+    st.header('Rebalance to new FF3 Exposures')
+
+    if "holdings" not in st.session_state:
+        st.session_state.holdings = []
+    if "input_counter" not in st.session_state:
+        st.session_state.input_counter = 0
+
+    # Defaults — only the selected branch below will override these
+    max_tickers = None
+    turnover_cap = None
+    edited_holdings_df = None
+
+    rebalance_constraints = st.radio(
+        "Rebalance Constraints",
+        ["Keep All Tickers Alike", "Set Turnover Threshold", "Manual Entry"],
+        horizontal=True,
+    )
+
+    if rebalance_constraints == "Keep All Tickers Alike":
+        st.session_state.opt_holdings['Weight'] = .001
+        st.session_state.holdings = st.session_state.opt_holdings
+        max_tickers = st.session_state.opt_holdings.index.tolist()
+
+    elif rebalance_constraints == "Set Turnover Threshold":
+        turnover_pct = st.slider(
+            "Max Turnover (% of portfolio that can change)",
+            min_value=0, max_value=95, value=10, step=5,
+        )
+        turnover_cap = turnover_pct / 100
+
+    elif rebalance_constraints == "Manual Entry":
+        st.write("**Adjust Current Portfolio:**")
+
+        holdings_df["Min Weight"] = holdings_df["Weight"]  # default: current weight as the floor
+
+        edited_holdings_df = st.data_editor(
+            holdings_df,
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "Min Weight": st.column_config.NumberColumn(
+                    "Min Weight",
+                    help="Minimum weight this ticker must keep after rebalancing",
+                    min_value=0.0,
+                    max_value=1.0,
+                    step=0.001,
+                    format="%.3f",
+                ),
+                # lock everything else so only Min Weight is editable
+                **{col: st.column_config.Column(disabled=True) for col in holdings_df.columns if col != "Min Weight"}
+            },
+            key="manual_min_weight_editor",
+        )
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        target_mkt = st.number_input(
+            "MKT (Market)",
+            min_value=0.5, max_value=1.5, value=1.0, step=0.1,
+            format="%.2f", help="Market exposure (typically around 1.0)",
+        )
+    with col2:
+        target_smb = st.number_input(
+            "SMB (Size)",
+            min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
+            format="%.2f", help="Small minus Big (positive = small cap tilt)",
+        )
+    with col3:
+        target_hml = st.number_input(
+            "HML (Value)",
+            min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
+            format="%.2f", help="High minus Low (positive = value tilt)",
+        )
+
+    # =============================================================================
+    # OPTIMIZE BUTTON
+    # =============================================================================
+    if st.button("Retrieve Weights", type="primary", width="stretch"):
+        with st.spinner("Running optimization... This may take a moment."):
+            constrained_holdings = (
+                pd.DataFrame(st.session_state.holdings)
+                if st.session_state.holdings
+                else None
+            )
+            try:
+                results_df, target_date = optimize_portfolio(
+                    total_value=total_value,
+                    constrained_holdings=constrained_holdings,
+                    target_mkt=target_mkt,
+                    target_smb=target_smb,
+                    target_hml=target_hml,
+                    max_tickers=max_tickers,
+                    turnover_cap=turnover_cap,
+                )
+
+                st.success(
+                    f"Optimization Complete — using data as of **{target_date.strftime('%B %Y')}**. Results Below:"
+                )
+
+            except Exception as e:
+                st.error(f"Optimization failed: {e}")
+                st.exception(e)
+
+
+def optimize_portfolio(
+    total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap
+):
+    today = pd.Timestamp.now()
+    if today.day >= 10:
+        target_date = today.replace(day=1)
+    else:
+        target_date = (today - pd.DateOffset(months=1)).replace(day=1)
+    target_date = target_date.normalize()
+    curr_weights = target_date.date()
+    end = curr_weights - relativedelta(days=1)
+    start = curr_weights - relativedelta(months=36)
+
+    opt_portf_weights = front_end_plug(
+        target_mkt,
+        target_smb,
+        target_hml,
+        start,
+        end,
+        total_value,
+        50,
+        constrained_holdings,
+        price_monthly_data,
+        new_monthly_data,
+        indexgspc1,
+        spy_yoy_tickers1,
+        max_tickers,
+        turnover_cap
+    )
+
+    results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})
+    return results_df, target_date
 footer = """
 <style>
 .footer {

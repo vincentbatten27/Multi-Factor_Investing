@@ -612,6 +612,7 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             st.header("Historical Monte Carlo Simulation")
 
             with st.spinner("Running Monte Carlo simulation..."):
+                max_tickers = None
                 curr_weights = target_date.date()
                 end_sim = curr_weights - relativedelta(days=1)
                 oos1_list, oos1_avg, oos1_y, expected_betas, rebalance_opt_weights = (
@@ -631,6 +632,8 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                         indexgspc1,
                         spy_yoy_tickers1,
                         obj_key,
+                        max_tickers,
+                        1.0,
                     )
                 )
 

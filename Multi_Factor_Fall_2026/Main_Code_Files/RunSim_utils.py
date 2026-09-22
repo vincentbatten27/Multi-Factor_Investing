@@ -311,16 +311,19 @@ def noise_adjustmnet(tickers, seed,c_portf):
     return tickers
 
 
-def optimization(c_portf):#new
+def optimization(c_portf, max_tickers, turnover_pct):#new
     
 
     global index, wei, aux, err, binary
     if c_portf is not None : # if we arent sending None, then this runs
         constrained_weigths = extract_weights(c_portf)
 
+    if max_tickers is not None:
+        I = [t for t in tickers if t in max_tickers]
+    else:
+        I = list(tickers)
     # --- Local, cached index sets ---
     T = list(monthly_data.index)
-    I = list(tickers)
 
     # --- Precompute numeric arrays (NO pandas .loc inside loops) ---
     # Align everything explicitly on T and I
@@ -359,7 +362,7 @@ def optimization(c_portf):#new
     index += lpSum(err[t] for t in T)
 
     # Weights sum to 1
-    index += lpSum(wei[i] for i in I) == 1
+    index += lpSum(wei[i] for i in I) <= turnover_pct
     # Absolute deviation constraints + L1 bound
     for i in I:
         bw = base[i]
@@ -471,7 +474,7 @@ def portfolio_betas():
 
 
 def simulator(
-    beta1, beta2, beta3, begin, final, budget, number, c_portf, t1, rebal_freq
+    beta1, beta2, beta3, begin, final, budget, number, c_portf, t1, rebal_freq, max_tickers, turnover_pct
 ):
     global start
     global end
@@ -504,7 +507,7 @@ def simulator(
     famafrenchreturns()
     to_cal_stock_price(start, final)
     Transaction_Costs()
-    optimization(c_portf)
+    optimization(c_portf, max_tickers, turnover_pct)
     others()
     global port_betas
     port_betas = portfolio_betas()
@@ -1104,6 +1107,8 @@ def new_run_with_backtest_mrebalance_front_end(
     rebal_freq,
     c_portf,
     obj_key,
+    max_tickers,
+    turnover_pct,
 ):
     # front end target date is end of last month (i.e., march 2026 is rn, feb-28-2026 is target date)
     global start_date
@@ -1181,6 +1186,8 @@ def new_run_with_backtest_mrebalance_front_end(
                         c_portf,
                         t1,
                         rebal_freq,
+                        max_tickers
+                        turnover_pct,
                     )
                     rebalance_opt_weights.append(opt_portf_weights)
                     mperformance = out_of_sampless(start_date11, end_date1).copy()
@@ -1239,6 +1246,7 @@ def new_run_with_backtest_mrebalance_front_end(
                         None,
                         t1,
                         rebal_freq,
+                        max_tickers,
                     )
                     rebalance_opt_weights.append(opt_portf_weights)
                     mperformance = out_of_sampless(start_date11, end_date1).copy()
@@ -1683,7 +1691,8 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC):
 # In[134]:
 
 def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings,
-price_monthly_data1,new_monthly_data1,indexgspc1,spy_yoy_tickers1):
+price_monthly_data1,new_monthly_data1,indexgspc1,spy_yoy_tickers1,
+max_tickers, turnover_cap):
     global price_monthly_data 
     global new_monthly_data 
     global indexgspc 
@@ -1698,14 +1707,16 @@ price_monthly_data1,new_monthly_data1,indexgspc1,spy_yoy_tickers1):
     
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
-    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings,end,'m')
+    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings,end,'m',max_tickers,turnover_cap)
     return opt_portf_weights
 
 def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, starting_budget, rebal_freq,c_portf,price_monthly_data1,
                     new_monthly_data1,
                     indexgspc1,
                     spy_yoy_tickers1,
-                    obj_key
+                    obj_key,
+                    max_tickers,
+                    turnover_pct,
                     ): 
     global price_monthly_data
     price_monthly_data = price_monthly_data1
@@ -1731,7 +1742,9 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, o
                 starting_budget,
                 rebal_freq,
                 c_portf,
-                obj_key
+                obj_key,
+                max_tickers,
+                turnover_pct,
             )
             #return oos1_new_performance, None, None, expected_betas, rebalance_opt_weights
         elif rebal_freq == 'pre_drm':
@@ -1825,6 +1838,7 @@ def famafrenchreturns_FS():
     ff3_monthly_FS = ff3_monthly_FS.groupby(level=0).last()  # or .mean(), etc.
     ff3_monthly_FS = ff3_monthly_FS.asfreq('MS')  
     ff3_monthly_FS = ff3_monthly_FS.interpolate(method='linear')
+
 
 def portoflio_ff3(opt_portf, new_monthly_data, ff3_monthly): # input output from optimal_weights_appended
     start_reg = opt_portf.index.min()
