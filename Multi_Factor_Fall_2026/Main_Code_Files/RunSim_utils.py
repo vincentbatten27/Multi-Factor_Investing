@@ -504,7 +504,7 @@ def simulator(
         base_w.T * 0
     )  # ONLY HAVE THIS LINE OF CODE WHEN YOU ARE CONSTRUCTING THE PORTFOLIO FROM SCRATCH
 
-    famafrenchreturns()
+    famafrenchreturns(new_monthly_data)
     to_cal_stock_price(start, final)
     Transaction_Costs()
     optimization(c_portf, max_tickers, turnover_pct)
