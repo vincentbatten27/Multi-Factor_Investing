@@ -181,22 +181,16 @@ def famafrenchreturns(new_monthly_data):
     # Keeping Only the Dates in the monthly_data
     ff3_monthly = ff3_monthly.reindex(new_monthly_data.index).dropna()
     # Keeping Only the Dates in the monthly_data
-    est_df = estimate_ff3_from_holdings(ff3_monthly)
+    est_df = estimate_ff3_from_holdings(ff3_monthly, new_monthly_data)
     ff3_monthly = pd.concat([ff3_monthly,est_df])
     return ff3_monthly
 
 
-def estimate_ff3_from_holdings(ff3_source):
+def estimate_ff3_from_holdings(ff3_source, new_monthly_data):
     # Filter for dates after the last known date
-    config = {"api_key": os.getenv("TIINGO_API_KEY"),"session": True}
-    client = TiingoClient(config)
+    
     indeces = ["VTI", "BIL", "IWM", "OEF", "IWD", "IWF"]  # 6 total: market, RF proxy, small, large, value, growth
-
-    px = client.get_dataframe(indeces, frequency="monthly",
-                            startDate=ff3_monthly.index.max(), endDate=target_date, metric_name="adjClose")
-    px.index = pd.to_datetime(px.index)
-    px.index = px.index.to_period("M").to_timestamp()
-    ret = px.pct_change().dropna()
+    ret = new_monthly_data[indeces].loc[ff3_monthly.index.max() + relativedelta(months=1) : target_date]
     mkt_rf = ret["VTI"] - ret["BIL"]   # market proxy minus risk-free proxy
     smb = ret["IWM"] - ret["OEF"]      # small minus large
     hml = ret["IWD"] - ret["IWF"]      # value minus growth
