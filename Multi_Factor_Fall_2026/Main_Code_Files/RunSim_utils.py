@@ -311,7 +311,7 @@ def noise_adjustmnet(tickers, seed,c_portf):
     return tickers
 
 
-def optimization(c_portf, max_tickers, turnover_pct):#new
+def optimization(c_portf, max_tickers, turnover_pct=1.0):#new
     
 
     global index, wei, aux, err, binary
@@ -362,7 +362,7 @@ def optimization(c_portf, max_tickers, turnover_pct):#new
     index += lpSum(err[t] for t in T)
 
     # Weights sum to 1
-    index += lpSum(wei[i] for i in I) <= turnover_pct
+    index += lpSum(wei[i] for i in I) == 1.0#turnover_pct
     # Absolute deviation constraints + L1 bound
     for i in I:
         bw = base[i]

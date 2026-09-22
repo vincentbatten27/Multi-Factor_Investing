@@ -248,10 +248,13 @@ else:
     elif rebalance_constraints == "Set Turnover Threshold":
         turnover_pct = st.slider(
             "Max Turnover (% of portfolio that can change)",
-            min_value=0, max_value=95, value=10, step=5,
+            min_value=0.05, max_value=100, value=10, step=5,
         )
         turnover_cap = turnover_pct / 100
-
+        constrained_df = holdings_df.copy()
+        constrained_df["Weight"] = constrained_df["Weight"] * (1 - turnover_cap)
+        st.session_state.holdings = constrained_df.to_dict("records")
+        
     elif rebalance_constraints == "Manual Entry":
         st.write("**Adjust Current Portfolio:**")
 
