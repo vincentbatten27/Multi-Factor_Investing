@@ -79,7 +79,8 @@ if uploaded_file is not None and not st.session_state.opt_file_loaded:
                 # the manual-entry sliders below will fill in st.session_state.opt_holdings
                 uploaded_df = uploaded_df.dropna(subset=["Ticker"])
 
-            valid_universe = set(new_monthly_data.columns)
+            recent = new_monthly_data.loc[new_monthly_data.index.max() - pd.DateOffset(months=36):]
+            valid_universe = set(recent.columns[recent.notna().any()])  # column exists AND has recent data
             unknown = sorted(set(uploaded_df["Ticker"]) - valid_universe)
 
             st.session_state.opt_holdings = uploaded_df.to_dict("records")
@@ -224,9 +225,11 @@ if not st.session_state.opt_holdings:
     st.info("Upload a CSV of your holdings first to rebalance.")
 else:
     holdings_df = pd.DataFrame(st.session_state.opt_holdings)
+    if "Weight" not in holdings_df.columns:   # Value-only uploads
+        holdings_df["Weight"] = holdings_df["Value"] / holdings_df["Value"].sum()
 
-    if "holdings" not in st.session_state:
-        st.session_state.holdings = []
+    # separate key from the Constructor page, which also uses st.session_state.holdings
+    st.session_state.opt_constrained = []
     if "input_counter" not in st.session_state:
         st.session_state.input_counter = 0
 
@@ -241,19 +244,19 @@ else:
     )
 
     if rebalance_constraints == "Keep All Tickers Alike":
-        holdings_df["Weight"] = .001
-        st.session_state.holdings = holdings_df.to_dict("records")
+        holdings_df["Min Weight"] = .001
+        st.session_state.opt_constrained = holdings_df.to_dict("records")
         max_tickers = holdings_df["Ticker"].tolist()
 
     elif rebalance_constraints == "Set Turnover Threshold":
         turnover_pct = st.slider(
             "Max Turnover (% of portfolio that can change)",
-            min_value=0.05, max_value=100, value=10, step=5,
+            min_value=5, max_value=100, value=10, step=5,
         )
         turnover_cap = turnover_pct / 100
         constrained_df = holdings_df.copy()
-        constrained_df["Weight"] = constrained_df["Weight"] * (1 - turnover_cap)
-        st.session_state.holdings = constrained_df.to_dict("records")
+        constrained_df["Min Weight"] = constrained_df["Weight"] * (1 - turnover_cap)
+        st.session_state.opt_constrained = constrained_df.to_dict("records")
         
     elif rebalance_constraints == "Manual Entry":
         st.write("**Adjust Current Portfolio:**")
@@ -277,6 +280,7 @@ else:
             },
             key="manual_min_weight_editor",
         )
+        st.session_state.opt_constrained = edited_holdings_df.to_dict("records")
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -301,8 +305,8 @@ else:
     if st.button("Retrieve Weights", type="primary", width="stretch"):
         with st.spinner("Running optimization... This may take a moment."):
             constrained_holdings = (
-                pd.DataFrame(st.session_state.holdings)
-                if st.session_state.holdings
+                pd.DataFrame(st.session_state.opt_constrained)
+                if st.session_state.opt_constrained
                 else None
             )
             try:

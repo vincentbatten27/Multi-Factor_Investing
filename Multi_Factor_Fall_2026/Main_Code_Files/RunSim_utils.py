@@ -137,6 +137,17 @@ def get_spy2(start, end, t1, rebal_freq, c_portf):
         ~prc_regression_window.isna().any(axis=0)
     ].tolist()
     valid_tickers = list(set(valid_tickers_ret) & set(valid_tickers_prc))    
+    # held tickers bypass the S&P filter above, but must still have full return/price data
+    # in the window -- otherwise extract_stock_data leaves an all-NaN column and PuLP fails
+    if c_portf is not None:
+        held = [t for t in c_portf["Ticker"] if t in new_monthly_data.columns and t in price_monthly_data.columns]
+        held_ok = [t for t in held
+                   if new_monthly_data.loc[start:end_reg, t].notna().all()
+                   and price_monthly_data.loc[start:end_reg, t].notna().all()]
+        dropped_held = sorted(set(c_portf["Ticker"]) - set(held_ok))
+        if dropped_held:
+            print(f"Dropping held tickers with missing data in window: {dropped_held}")
+        c_portf = c_portf[c_portf["Ticker"].isin(held_ok)]
     tickers =  noise_adjustmnet(valid_tickers,new_seed, c_portf)
     ### Import the monthly data
     global monthly_data
@@ -264,6 +275,9 @@ def Transaction_Costs(initialize=False):
 # not working on back tests now?
 def extract_weights(c_portf):   
     c_portf.index = c_portf['Ticker']
+    if 'Min Weight' in c_portf.columns:   # Portfolio Optimizer page passes explicit lower bounds
+        c_portf['Weight'] = c_portf['Min Weight']
+        return c_portf[['Weight']].astype(float)
     if B % 100000 == 0:
         c_portf['Weight'] = c_portf['Value']/B    
         return c_portf[['Weight']].astype(float)
@@ -343,6 +357,7 @@ def optimization(c_portf, max_tickers, turnover_pct=1.0):#new
     base = {i: float(base_weights[i]) for i in I}    # transaction cost coefficient per unit aux:
     # aux[i] * B * t_cost[i] / s_price[i]
     tc_coef = {i: float(B * t_cost[i] / s_price[i]) for i in I}
+    bad = ~np.isfinite(X)
 
     # --- Build model ---
     index = LpProblem("Index", LpMinimize)
