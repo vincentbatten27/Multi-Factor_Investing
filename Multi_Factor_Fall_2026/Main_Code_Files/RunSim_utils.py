@@ -183,6 +183,7 @@ def famafrenchreturns(new_monthly_data):
     # Keeping Only the Dates in the monthly_data
     est_df = estimate_ff3_from_holdings(ff3_monthly, new_monthly_data)
     ff3_monthly = pd.concat([ff3_monthly,est_df])
+    ff3_monthly = ff3_monthly[~ff3_monthly.index.duplicated(keep='first')]
     return ff3_monthly
 
 
