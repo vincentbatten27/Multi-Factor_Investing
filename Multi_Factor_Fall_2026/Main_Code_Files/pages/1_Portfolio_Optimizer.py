@@ -182,6 +182,42 @@ st.divider()
 # =============================================================================
 # PLACEHOLDER: Graphing and Rebalancing
 # =============================================================================
+def optimize_portfolio(
+    total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap
+):
+    today = pd.Timestamp.now()
+    if today.day >= 10:
+        target_date = today.replace(day=1)
+    else:
+        target_date = (today - pd.DateOffset(months=1)).replace(day=1)
+    target_date = target_date.normalize()
+    curr_weights = target_date.date()
+    end = curr_weights - relativedelta(days=1)
+    start = curr_weights - relativedelta(months=36)
+
+    opt_portf_weights = front_end_plug(
+        target_mkt,
+        target_smb,
+        target_hml,
+        start,
+        end,
+        total_value,
+        50,
+        constrained_holdings,
+        price_monthly_data,
+        new_monthly_data,
+        indexgspc1,
+        spy_yoy_tickers1,
+        max_tickers,
+        turnover_cap
+    )
+
+    results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})
+    return results_df, target_date
+
+
+
+
 st.header('Rebalance to new FF3 Exposures')
 
 if not st.session_state.opt_holdings:
@@ -284,39 +320,6 @@ else:
                 st.exception(e)
   
 
-
-def optimize_portfolio(
-    total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap
-):
-    today = pd.Timestamp.now()
-    if today.day >= 10:
-        target_date = today.replace(day=1)
-    else:
-        target_date = (today - pd.DateOffset(months=1)).replace(day=1)
-    target_date = target_date.normalize()
-    curr_weights = target_date.date()
-    end = curr_weights - relativedelta(days=1)
-    start = curr_weights - relativedelta(months=36)
-
-    opt_portf_weights = front_end_plug(
-        target_mkt,
-        target_smb,
-        target_hml,
-        start,
-        end,
-        total_value,
-        50,
-        constrained_holdings,
-        price_monthly_data,
-        new_monthly_data,
-        indexgspc1,
-        spy_yoy_tickers1,
-        max_tickers,
-        turnover_cap
-    )
-
-    results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})
-    return results_df, target_date
 footer = """
 <style>
 .footer {
