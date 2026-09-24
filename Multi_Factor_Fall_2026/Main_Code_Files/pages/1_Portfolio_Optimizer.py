@@ -19,6 +19,36 @@ else:
 window_end = target_date - pd.Timedelta(days=1)   # e.g. 2026-08-31 -> window Sep 2023 .. Aug 2026
 
 
+
+def compute_metrics(series, label, ff3):
+    """Performance stats for a growth-of-$1 series of monthly points."""
+    returns = series.pct_change().dropna()
+    months = len(returns)
+
+    # Monthly RF over exactly the return months (divide by 100 if FF is in percent)
+    rf_m = ff3.loc[returns.index[0]:returns.index[-1], "RF"]
+    rf_mean = rf_m.mean() if len(rf_m) else 0.0
+    rf_m_aligned = rf_m.reindex(returns.index, method="ffill").fillna(rf_mean)
+    rf = (1 + rf_mean) ** 12 - 1          # scalar annual RF
+
+    total_return = (series.iloc[-1] / series.iloc[0]) - 1
+    ann_return = (1 + total_return) ** (12 / months) - 1
+    volatility = returns.std() * np.sqrt(12)
+    downside_vol = np.sqrt(((returns - rf_m_aligned).clip(upper=0) ** 2).mean()) * np.sqrt(12)
+    sharpe = (ann_return - rf) / volatility if volatility != 0 else np.nan
+    sortino = (ann_return - rf) / downside_vol if downside_vol != 0 else np.nan
+
+    return {
+        "Metric": label,
+        "Total Return": f"{total_return*100:.2f}%",
+        "Annualized Return": f"{ann_return*100:.2f}%",
+        "Volatility": f"{volatility*100:.2f}%",
+        "Downside Vol": f"{downside_vol*100:.2f}%",
+        "Sharpe Ratio": f"{sharpe:.3f}",
+        "Sortino Ratio": f"{sortino:.3f}",
+    }
+
+
 def oos_compare_chart(perf_df):
     """Growth of $1: optimized weights vs current weights, each line toggleable."""
     c1, c2 = st.columns(2)
@@ -64,6 +94,24 @@ def oos_compare_chart(perf_df):
         height=500,
     )
     st.plotly_chart(fig, width="stretch")
+
+    # Metrics for whichever portfolios are toggled on
+    rows = []
+    if show_new:
+        rows.append(compute_metrics(perf_df["Optimized Portfolio"], "Optimized Portfolio", ff3_monthly))
+    if show_old:
+        rows.append(compute_metrics(perf_df["Old Portfolio"], "Current Portfolio", ff3_monthly))
+    metrics = pd.DataFrame(rows).set_index("Metric")
+    st.dataframe(
+        metrics.style.apply(
+            lambda col: [
+                "color: royalblue" if idx == "Optimized Portfolio" else "color: black"
+                for idx in metrics.index
+            ],
+            axis=0,
+        ),
+        width="stretch",
+    )
 
 
 st.title("Portfolio Optimizer")
