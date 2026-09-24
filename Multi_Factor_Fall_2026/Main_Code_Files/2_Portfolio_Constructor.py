@@ -398,6 +398,7 @@ def optimize_portfolio(
         new_monthly_data,
         indexgspc1,
         spy_yoy_tickers1,
+        None,None
     )
 
     results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})
