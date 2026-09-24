@@ -324,7 +324,7 @@ def final_visuala(ddfs, expected_betas=None, obj=None):
     # Performance Metrics
     # =========================================================================
     def compute_metrics(series, label):
-        ff3_monthly = famafrenchreturns()   # ideally load once outside this function
+        ff3_monthly = famafrenchreturns(mew_monthly_data)   # ideally load once outside this function
 
         # Convert cumulative values to period returns
         returns = series.pct_change().dropna()
@@ -404,7 +404,7 @@ def optimize_portfolio(
     results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})
     return results_df, target_date
 def compute_factor_attribution(port_returns, expected_betas):
-    ff3 = famafrenchreturns()
+    ff3 = famafrenchreturns(new_monthly_data)
     ff3_slice = ff3.loc[port_returns.index[0]:port_returns.index[-1]]
 
     contrib_results = []
