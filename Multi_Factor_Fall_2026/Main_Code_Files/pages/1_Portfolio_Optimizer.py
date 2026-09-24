@@ -3,6 +3,7 @@ import pandas as pd
 from app_common import load_data
 from RunSim_utils import *
 import statsmodels.api as sm
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="Portfolio Optimizer")
 
@@ -16,6 +17,54 @@ if today.day >= DATA_READY_DAY:
 else:
     target_date = (today - pd.DateOffset(months=1)).replace(day=1)
 window_end = target_date - pd.Timedelta(days=1)   # e.g. 2026-08-31 -> window Sep 2023 .. Aug 2026
+
+
+def oos_compare_chart(perf_df):
+    """Growth of $1: optimized weights vs current weights, each line toggleable."""
+    c1, c2 = st.columns(2)
+    show_new = c1.checkbox("Optimized Portfolio", value=True, key="oos_show_new")
+    show_old = c2.checkbox("Current Portfolio", value=True, key="oos_show_old")
+
+    fig = go.Figure()
+    if show_old:
+        fig.add_trace(go.Scatter(
+            x=perf_df.index, y=perf_df["Old Portfolio"],
+            mode="lines+markers", name="Current Portfolio",
+            line=dict(color="black", width=2, dash="dash"),
+            marker=dict(color="black", size=5, symbol="circle"),
+            hovertemplate="%{x|%b %Y}<br>Current: $%{y:.3f}<extra></extra>",
+        ))
+    if show_new:
+        fig.add_trace(go.Scatter(
+            x=perf_df.index, y=perf_df["Optimized Portfolio"],
+            mode="lines+markers", name="Optimized Portfolio",
+            line=dict(color="royalblue", width=2.5),
+            marker=dict(color="royalblue", size=5, symbol="circle"),
+            hovertemplate="%{x|%b %Y}<br>Optimized: $%{y:.3f}<extra></extra>",
+        ))
+    if not (show_new or show_old):
+        st.info("Select at least one portfolio to plot.")
+        return
+
+    for date in perf_df.index:
+        fig.add_vline(x=date, line=dict(color="rgba(150, 150, 150, 0.2)", width=1, dash="dot"))
+
+    fig.update_layout(
+        title=dict(
+            text="Optimized vs Current Portfolio<br><sup>Growth of $1 invested</sup>",
+            font=dict(size=18),
+        ),
+        xaxis=dict(title="Date", tickformat="%b %Y", tickangle=-45, showgrid=False),
+        yaxis=dict(title="Value ($)", tickprefix="$", showgrid=True,
+                   gridcolor="rgba(200,200,200,0.3)"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified",
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        height=500,
+    )
+    st.plotly_chart(fig, width="stretch")
+
 
 st.title("Portfolio Optimizer")
 st.caption(
@@ -421,7 +470,31 @@ else:
             mime="text/csv",
             width="stretch",
         )
-  
+        # =================================================================
+        # MONTE CARLO SIMULATION
+        # =================================================================
+        st.divider()
+        st.header("Historical Monte Carlo Simulation")
+        st.subheader("Simulation Options")
+
+        col1 = st.columns([1, 1])
+        out_years = st.number_input(
+                "Testing Years",
+                min_value=1,
+                max_value=25,
+                value=1,
+                step=1,
+                help="Number of years to see results for",
+            )
+        with st.spinner("Running Monte Carlo simulation..."):
+            # out_of_sampless reads new_monthly_data as a RunSim_utils global
+            import RunSim_utils
+            RunSim_utils.new_monthly_data = new_monthly_data
+            opt_w = display_df.loc[display_df["New Weight"] != 0, ["New Weight"]].rename(columns={"New Weight": "Weight"})
+            old_w = display_df.loc[display_df["Current Weight"] != 0, ["Current Weight"]].rename(columns={"Current Weight": "Weight"})
+            oos1_list = out_of_sampless(target_date - relativedelta(years=out_years), target_date, opt_w, old_w)
+        oos_compare_chart(oos1_list)
+    
 
 footer = """
 <style>

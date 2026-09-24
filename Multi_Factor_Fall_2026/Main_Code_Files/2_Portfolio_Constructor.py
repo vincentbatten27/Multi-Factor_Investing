@@ -324,21 +324,21 @@ def final_visuala(ddfs, expected_betas=None, obj=None):
     # Performance Metrics
     # =========================================================================
     def compute_metrics(series, label):
-        start = str(series.index[0])
-        end = str(series.index[-1])
-        ff3_monthly = famafrenchreturns()
-        rf = ff3_monthly[start:end]["RF"]
-        rf = rf.mean()
+        ff3_monthly = famafrenchreturns()   # ideally load once outside this function
+
         # Convert cumulative values to period returns
         returns = series.pct_change().dropna()
-        n = len(returns)
-        months = n
+        months = len(returns)
+
+        # Monthly RF over exactly the return months (divide by 100 if FF is in percent)
+        rf_m = ff3_monthly.loc[returns.index[0]:returns.index[-1], "RF"]
+        rf_m_aligned = rf_m.reindex(returns.index, method="ffill").fillna(rf_m.mean())
+        rf = (1 + rf_m.mean()) ** 12 - 1          # scalar annual RF
 
         total_return = (series.iloc[-1] / series.iloc[0]) - 1
         ann_return = (1 + total_return) ** (12 / months) - 1
         volatility = returns.std() * np.sqrt(12)
-        downside_returns = returns[returns < 0]
-        downside_vol = downside_returns.std() * np.sqrt(12)
+        downside_vol = np.sqrt(((returns - rf_m_aligned).clip(upper=0) ** 2).mean()) * np.sqrt(12)
         sharpe = (ann_return - rf) / volatility if volatility != 0 else np.nan
         sortino = (ann_return - rf) / downside_vol if downside_vol != 0 else np.nan
 

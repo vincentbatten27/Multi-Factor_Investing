@@ -272,7 +272,6 @@ def Transaction_Costs(initialize=False):
 # In[99]:
 
 
-# not working on back tests now?
 def extract_weights(c_portf):   
     c_portf.index = c_portf['Ticker']
     if 'Min Weight' in c_portf.columns:   # Portfolio Optimizer page passes explicit lower bounds
@@ -582,6 +581,47 @@ def out_of_sampless(cccc, dddd):
     return oos1_new_performance
 
 
+def out_of_sampless(cccc, dddd, opt_port_f, old_port_f): # CLAUDE
+    """
+    Builds the growth-of-$1 frame that final_visual_compare() consumes.
+ 
+    opt_port_f / old_port_f: DataFrames indexed by ticker, each with a 'Weight'
+    column (current targets and old targets respectively).
+ 
+    Returns a DataFrame with columns ['Optimized Portfolio', 'Old Portfolio'].
+    """
+    global oos1_daily_data
+    global oos1_spy_d
+    global oos1_new_performance
+    global o1_end_d
+    global o1_start_d
+    o1_start_d = cccc
+    o1_end_d = dddd
+ 
+    w_opt = opt_port_f["Weight"].astype(float)
+    w_old = old_port_f["Weight"].astype(float)
+ 
+    # Pull returns once for the union of both ticker sets
+    tickers = list(dict.fromkeys(w_opt.index.tolist() + w_old.index.tolist()))
+    oos1_daily_data = extract_stock_data(
+        new_monthly_data,
+        tickers,
+        start=o1_start_d,
+        end=o1_end_d,
+    )
+    oos1_daily_data = oos1_daily_data.tz_localize(None)
+ 
+    # Weighted period returns for each portfolio (NaN if any held ticker is missing)
+    oos1_daily_data["Optimized Portfolio"] = oos1_daily_data[w_opt.index] @ w_opt
+    oos1_daily_data["Old Portfolio"] = oos1_daily_data[w_old.index] @ w_old
+ 
+    port_returns = oos1_daily_data[["Optimized Portfolio", "Old Portfolio"]].dropna()
+ 
+    # Growth of $1: same convention as before, value at row j compounds
+    # returns through row j-1, so the first row is exactly 1.0
+    oos1_new_performance = (1 + port_returns).cumprod().shift(1).fillna(1.0)
+ 
+    return oos1_new_performance
 # In[106]:
 
 
