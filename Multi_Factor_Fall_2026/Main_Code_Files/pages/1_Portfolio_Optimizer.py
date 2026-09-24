@@ -7,11 +7,15 @@ import statsmodels.api as sm
 st.set_page_config(page_title="Portfolio Optimizer")
 
 price_monthly_data, new_monthly_data, ff3_monthly, indexgspc1, spy_yoy_tickers1 = load_data()
-today = pd.Timestamp.now()# -relativedelta(days=10)  # ensure we have data for the current month if we're early in the month
-target_date = today.replace(day=1)
-target_date = target_date.normalize()
-curr_weights = target_date.date()
-weights_opt_d = curr_weights - relativedelta(days=1)
+# One date rule for the whole page: last month's data is complete by DATA_READY_DAY,
+# so the 36-month window ends on the last day of the last complete month.
+DATA_READY_DAY = 3
+today = pd.Timestamp.now().normalize()
+if today.day >= DATA_READY_DAY:
+    target_date = today.replace(day=1)
+else:
+    target_date = (today - pd.DateOffset(months=1)).replace(day=1)
+window_end = target_date - pd.Timedelta(days=1)   # e.g. 2026-08-31 -> window Sep 2023 .. Aug 2026
 
 st.title("Portfolio Optimizer")
 st.caption(
@@ -122,7 +126,7 @@ if st.session_state.opt_holdings:
     if st.session_state.get("opt_needs_manual_entry"):
         st.caption("No Value or Weight column found — splitting the Total Portfolio Value above equally across holdings.")
         n = len(holdings_df)
-        holdings_df["Value"] = total_value / n  # equal-weight split across all holdings
+        holdings_df["Value"] = total_value * holdings_df['Weight'] # equal-weight split across all holdings
         st.session_state.opt_holdings = holdings_df.to_dict("records")
 
     st.write("**Current Portfolio:**")
@@ -166,7 +170,7 @@ if st.session_state.opt_holdings:
     opt_portfolio_weights = clean_df.set_index("Ticker")[["Weight"]]
     opt_portfolio_weights.rename(columns={"Weight": "New Weight"}, inplace=True)
 
-    df_extrap = optimal_weights_appended(opt_portfolio_weights, price_monthly_data, target_date)
+    df_extrap = optimal_weights_appended(opt_portfolio_weights, price_monthly_data, window_end)
     portf_ff3 = portoflio_ff3(df_extrap, new_monthly_data, ff3_monthly)
     
     if isinstance(portf_ff3, str):
@@ -200,12 +204,7 @@ st.divider()
 def optimize_portfolio(
     total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap
 ):
-    today = pd.Timestamp.now()
-    if today.day >= 10:
-        target_date = today.replace(day=1)
-    else:
-        target_date = (today - pd.DateOffset(months=1)).replace(day=1)
-    target_date = target_date.normalize()
+    # uses the page-level target_date so the optimizer and the FF3 checks share one window
     curr_weights = target_date.date()
     end = curr_weights - relativedelta(days=1)
     start = curr_weights - relativedelta(months=36)
@@ -335,7 +334,7 @@ else:
                 )
                 # FF3 of the new portfolio — same method/window as the current portfolio's betas above
                 new_w = results_df[["Weight"]].rename(columns={"Weight": "New Weight"})
-                new_extrap = optimal_weights_appended(new_w, price_monthly_data, target_date)
+                new_extrap = optimal_weights_appended(new_w, price_monthly_data, window_end)
                 new_ff3 = portoflio_ff3(new_extrap, new_monthly_data, ff3_monthly)
 
                 st.session_state.opt_results = {
