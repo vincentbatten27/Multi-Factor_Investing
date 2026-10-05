@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 from app_common import load_data
@@ -329,6 +330,40 @@ def optimize_portfolio(
 
 
 
+OPT_PRESETS = {
+    "Max Return": "max_return",
+    "Minimum Volatility": "volatility",
+    "Max Sharpe": "sharpe",
+    "Max Sortino": "sortino",
+    "Minimum Downside Volatility": "downside_vol",
+}
+
+
+@st.cache_data(show_spinner=False)
+def get_optimal_betas(as_of):
+    """Best (MKT, SMB, HML) targets per objective from the saved strategy runs - same files the Constructor page uses.
+    Uses the file for `as_of` (YYYY-MM-DD); if that month isn't there yet, falls back to the latest earlier one."""
+    base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out, used = {}, None
+    for obj in OPT_PRESETS.values():
+        folder = os.path.join(base_path, "Front_End_Strategies_Iteration_4c_excess_surrogate", obj)
+        try:
+            files = sorted(
+                f for f in os.listdir(folder)
+                if f.startswith(f"rebal_explored_{obj}_") and f.endswith(".csv")
+                and f[len(f"rebal_explored_{obj}_"):-4] <= as_of
+            )
+            if not files:
+                continue
+            df = pd.read_csv(os.path.join(folder, files[-1]))
+            best = df.nlargest(1, "reward").iloc[0]
+            out[obj] = [float(best["c1"]), float(best["c2"]), float(best["c3"])]
+            used = files[-1][len(f"rebal_explored_{obj}_"):-4]
+        except Exception:
+            continue
+    return out, used
+
+
 st.header('Rebalance to new FF3 Exposures')
 
 if not st.session_state.opt_holdings:
@@ -346,11 +381,19 @@ else:
     max_tickers = None
     turnover_cap = None
     edited_holdings_df = None
+    constraints_valid = True
 
     rebalance_constraints = st.radio(
         "Rebalance Constraints",
         ["Keep All Tickers Alike", "Set Turnover Threshold", "Manual Entry"],
         horizontal=True,
+        help=(
+            "**Keep All Tickers Alike**: every ticker you hold stays in the portfolio (min weight 0.1%) and the "
+            "optimizer only reweights them - no new tickers are added.\n\n"
+            "**Set Turnover Threshold**: each holding can shrink by at most the turnover % you pick (its min weight = "
+            "current weight x (1 - turnover)); the optimizer can add new tickers.\n\n"
+            "**Manual Entry**: set your own Min Weight (floor) and Max Weight (cap) per ticker."
+        ),
     )
 
     if rebalance_constraints == "Keep All Tickers Alike":
@@ -362,6 +405,7 @@ else:
         turnover_pct = st.slider(
             "Max Turnover (% of portfolio that can change)",
             min_value=5, max_value=100, value=10, step=5,
+            help="Each holding may be cut by at most this share of its current weight. 100% = no floor on any holding.",
         )
         turnover_cap = turnover_pct / 100
         constrained_df = holdings_df.copy()
@@ -372,6 +416,7 @@ else:
         st.write("**Adjust Current Portfolio:**")
 
         holdings_df["Min Weight"] = holdings_df["Weight"]
+        holdings_df["Max Weight"] = 1.0
 
         edited_holdings_df = st.data_editor(
             holdings_df,
@@ -386,33 +431,68 @@ else:
                     step=0.001,
                     format="%.3f",
                 ),
-                **{col: st.column_config.Column(disabled=True) for col in holdings_df.columns if col != "Min Weight"}
+                "Max Weight": st.column_config.NumberColumn(
+                    "Max Weight",
+                    help="Maximum weight this ticker may have after rebalancing (1.000 = no cap). Must be at least the Min Weight.",
+                    min_value=0.0,
+                    max_value=1.0,
+                    step=0.001,
+                    format="%.3f",
+                ),
+                **{col: st.column_config.Column(disabled=True) for col in holdings_df.columns if col not in ("Min Weight", "Max Weight")}
             },
             key="manual_min_weight_editor",
         )
         st.session_state.opt_constrained = edited_holdings_df.to_dict("records")
+        bad_rows = edited_holdings_df[edited_holdings_df["Max Weight"] < edited_holdings_df["Min Weight"] - 1e-9]
+        if not bad_rows.empty:
+            constraints_valid = False
+            st.error("Max Weight must be at least Min Weight for: " + ", ".join(bad_rows["Ticker"].astype(str)))
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        target_mkt = st.number_input(
-            "MKT (Market)", min_value=0.5, max_value=1.5, value=1.0, step=0.1,
-            format="%.2f", help="Market exposure (typically around 1.0)",
-        )
-    with col2:
-        target_smb = st.number_input(
-            "SMB (Size)", min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
-            format="%.2f", help="Small minus Big (positive = small cap tilt)",
-        )
-    with col3:
-        target_hml = st.number_input(
-            "HML (Value)", min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
-            format="%.2f", help="High minus Low (positive = value tilt)",
-        )
+    optimal_betas, optimal_asof = get_optimal_betas(window_end.strftime("%Y-%m-%d"))
+    preset_labels = {
+        label: f"{label} ({optimal_betas[obj][0]}, {optimal_betas[obj][1]}, {optimal_betas[obj][2]})"
+        for label, obj in OPT_PRESETS.items() if obj in optimal_betas
+    }
+    preset = st.selectbox(
+        "Choose a preset or enter custom values",
+        ["Custom"] + list(preset_labels.values()),
+        help=(
+            "Presets are the optimal FF3 targets for each objective from the latest strategy run"
+            + (f" (as of {optimal_asof})" if optimal_asof else "")
+            + " - the same values the Portfolio Constructor uses. Choose Custom to type your own."
+        ),
+    )
+
+    if preset == "Custom":
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            target_mkt = st.number_input(
+                "MKT (Market)", min_value=0.5, max_value=1.5, value=1.0, step=0.1,
+                format="%.2f", help="Market exposure (typically around 1.0)",
+            )
+        with col2:
+            target_smb = st.number_input(
+                "SMB (Size)", min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
+                format="%.2f", help="Small minus Big (positive = small cap tilt)",
+            )
+        with col3:
+            target_hml = st.number_input(
+                "HML (Value)", min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
+                format="%.2f", help="High minus Low (positive = value tilt)",
+            )
+    else:
+        chosen_obj = next(OPT_PRESETS[k] for k, v in preset_labels.items() if v == preset)
+        target_mkt, target_smb, target_hml = optimal_betas[chosen_obj]
+        col1, col2, col3 = st.columns(3)
+        col1.metric("MKT (Market)", f"{target_mkt:.2f}")
+        col2.metric("SMB (Size)", f"{target_smb:.2f}")
+        col3.metric("HML (Value)", f"{target_hml:.2f}")
 
     # =============================================================================
     # OPTIMIZE BUTTON
     # =============================================================================
-    if st.button("Retrieve Weights", type="primary", width="stretch"):
+    if st.button("Retrieve Weights", type="primary", width="stretch", disabled=not constraints_valid):
         with st.spinner("Running optimization... This may take a moment."):
             constrained_holdings = (
                 pd.DataFrame(st.session_state.opt_constrained)

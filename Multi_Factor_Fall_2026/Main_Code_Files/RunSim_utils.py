@@ -361,16 +361,33 @@ def optimization(c_portf, max_tickers, turnover_pct=1.0):#new
     # --- Build model ---
     index = LpProblem("Index", LpMinimize)
 
-    wei    = LpVariable.dicts("Weight", I, lowBound=0)
+    # PuLP 4.0 removed LpVariable.dicts -> build the same dicts (same "Name_key" naming that others() relies on)
+    wei    = {i: LpVariable(f"Weight_{i}", lowBound=0) for i in I}
     if c_portf is not None :   # if not setting none, we set lower weight bound to what the lower weight would be for the ticker owned 
         for i in I:            # Assumption: No personal buying or selling after portoflio starts, only prior
             if i in constrained_weigths.index:
                val = float(constrained_weigths.loc[i, 'Weight'])
                wei[i].lowBound = val
         
-    aux    = LpVariable.dicts("Y",      I, lowBound=0)
-    err    = LpVariable.dicts("Error",  T, lowBound=0)
-    binary = LpVariable.dicts("bin",    I, cat=LpBinary)
+    # Optional per-ticker upper bounds (Portfolio Optimizer page, Manual Entry "Max Weight" column)
+    if c_portf is not None and 'Max Weight' in c_portf.columns:
+        max_w = pd.to_numeric(c_portf['Max Weight'], errors='coerce')
+        for i in I:
+            if i in max_w.index and np.isfinite(max_w.loc[i]):
+                wei[i].upBound = float(max_w.loc[i])
+                if wei[i].lowBound is not None and wei[i].lowBound > wei[i].upBound + 1e-9:
+                    raise ValueError(f"{i}: Min Weight ({wei[i].lowBound:.3f}) is above Max Weight ({wei[i].upBound:.3f}).")
+        cap_total = sum(1.0 if w.upBound is None else w.upBound for w in wei.values())
+        if cap_total < 1 - 1e-9:
+            raise ValueError(f"Max Weights only allow {cap_total:.1%} of the portfolio to be invested - raise some Max Weights.")
+    if c_portf is not None:
+        floor_total = sum((w.lowBound or 0.0) for w in wei.values())
+        if floor_total > 1 + 1e-9:
+            raise ValueError(f"Min Weights add up to {floor_total:.1%} - they must total 100% or less.")
+
+    aux    = {i: LpVariable(f"Y_{i}",   lowBound=0) for i in I}
+    err    = {t: LpVariable(f"Error_{t}", lowBound=0) for t in T}
+    binary = {i: LpVariable(f"bin_{i}", cat=LpBinary) for i in I}
 
     # Objective: minimize sum of absolute tracking errors
     index += lpSum(err[t] for t in T)
