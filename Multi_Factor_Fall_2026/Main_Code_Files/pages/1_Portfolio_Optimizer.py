@@ -300,7 +300,7 @@ st.divider()
 # PLACEHOLDER: Graphing and Rebalancing
 # =============================================================================
 def optimize_portfolio(
-    total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap
+    total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap, curr
 ):
     # uses the page-level target_date so the optimizer and the FF3 checks share one window
     curr_weights = target_date.date()
@@ -321,7 +321,8 @@ def optimize_portfolio(
         indexgspc1,
         spy_yoy_tickers1,
         max_tickers,
-        turnover_cap
+        turnover_cap,
+        old_weights
     )
 
     results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})

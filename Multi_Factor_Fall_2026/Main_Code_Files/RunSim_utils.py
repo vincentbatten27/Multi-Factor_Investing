@@ -324,7 +324,7 @@ def noise_adjustmnet(tickers, seed,c_portf):
     return tickers
 
 
-def optimization(c_portf, max_tickers, turnover_pct=1.0):#new
+def optimization(c_portf, max_tickers, turnover_pct, old_weights):#new
     
 
     global index, wei, aux, err, binary
@@ -333,6 +333,8 @@ def optimization(c_portf, max_tickers, turnover_pct=1.0):#new
 
     if max_tickers is not None:
         I = [t for t in tickers if t in max_tickers]
+        
+
     else:
         I = list(tickers)
     # --- Local, cached index sets ---
@@ -507,7 +509,7 @@ def portfolio_betas():
 
 
 def simulator(
-    beta1, beta2, beta3, begin, final, budget, number, c_portf, t1, rebal_freq, max_tickers, turnover_pct
+    beta1, beta2, beta3, begin, final, budget, number, c_portf, t1, rebal_freq, max_tickers, turnover_pct, old_weights
 ):
     global start
     global end
@@ -540,7 +542,7 @@ def simulator(
     famafrenchreturns(new_monthly_data)
     to_cal_stock_price(start, final)
     Transaction_Costs()
-    optimization(c_portf, max_tickers, turnover_pct)
+    optimization(c_portf, max_tickers, turnover_pct, old_weights)
     others()
     global port_betas
     port_betas = portfolio_betas()
@@ -1766,7 +1768,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC):
 
 def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings,
 price_monthly_data1,new_monthly_data1,indexgspc1,spy_yoy_tickers1,
-max_tickers, turnover_cap):
+max_tickers, turnover_cap, old_weights):
     global price_monthly_data 
     global new_monthly_data 
     global indexgspc 
@@ -1781,7 +1783,7 @@ max_tickers, turnover_cap):
     
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
-    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings,end,'m',max_tickers,turnover_cap)
+    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings,end,'m',max_tickers,turnover_cap, old_weights)
     return opt_portf_weights
 
 def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, starting_budget, rebal_freq,c_portf,price_monthly_data1,
