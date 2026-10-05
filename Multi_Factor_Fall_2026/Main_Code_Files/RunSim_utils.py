@@ -80,8 +80,8 @@ def extract_stock_data(df, tdickers, start, end):
                 print()
                # print(f"Column '{col}' could not be converted to float.")
     df_selected.interpolate(method='linear',inplace=True)
-    df_selected = df_selected.fillna(method='ffill')
-    df_selected = df_selected.fillna(method='bfill')
+    df_selected = df_selected.ffill()
+    df_selected = df_selected.bfill()
     return df_selected
 
 
@@ -581,7 +581,7 @@ def out_of_sampless(cccc, dddd):
     return oos1_new_performance
 
 
-def out_of_sampless(cccc, dddd, opt_port_f, old_port_f): # CLAUDE
+def out_of_sampless_compare(cccc, dddd, opt_port_f, old_port_f): # CLAUDE
     """
     Builds the growth-of-$1 frame that final_visual_compare() consumes.
  

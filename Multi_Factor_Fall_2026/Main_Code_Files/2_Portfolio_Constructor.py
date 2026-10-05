@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from RunSim_utils import *
 import os
+import glob
 from app_common import load_data
 
 
@@ -141,10 +142,11 @@ def get_betas():
 
     for obj in OBJECTIVES:
         base_path = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(
-            base_path,
-            f"Front_End_Strategies_Iteration_4c_excess_surrogate/{obj}/rebal_explored_{obj}_{weights_opt_d.strftime('%Y-%m-%d')}.csv",
-        )
+        folder = os.path.join(base_path, "Front_End_Strategies_Iteration_4c_excess_surrogate", obj)
+        path = os.path.join(folder, f"rebal_explored_{obj}_{weights_opt_d.strftime('%Y-%m-%d')}.csv")
+        if not os.path.exists(path):
+            path = sorted(glob.glob(os.path.join(folder, f"rebal_explored_{obj}_*.csv")))[-1]
+            st.warning(f"No bandit file for {weights_opt_d} ({obj}). Using latest available: {os.path.basename(path)}")
         df = pd.read_csv(path)
         best = df.nlargest(1, "reward").iloc[0]
         betas[obj] = [best["c1"], best["c2"], best["c3"]]
@@ -324,7 +326,7 @@ def final_visuala(ddfs, expected_betas=None, obj=None):
     # Performance Metrics
     # =========================================================================
     def compute_metrics(series, label):
-        ff3_monthly = famafrenchreturns(mew_monthly_data)   # ideally load once outside this function
+        ff3_monthly = famafrenchreturns(new_monthly_data)   # ideally load once outside this function
 
         # Convert cumulative values to period returns
         returns = series.pct_change().dropna()
