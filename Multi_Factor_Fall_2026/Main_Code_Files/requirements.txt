@@ -8,11 +8,10 @@ plotly
 ipython
 yfinance
 statsmodels
-pulp
+pulp==2.9.0
 pandas-datareader
 requests
 openpyxl
 python-dateutil
-pathlib
 alpha_vantage
 getFamaFrenchFactors
