@@ -407,14 +407,14 @@ def optimize_portfolio(
     return results_df, target_date
 def compute_factor_attribution(port_returns, expected_betas):
     ff3 = famafrenchreturns(new_monthly_data)
-    ff3_slice = ff3.loc[port_returns.index[0]:port_returns.index[-1]]
+    ff3_slice = ff3.reindex(port_returns.index)
 
     contrib_results = []
     for i in range(len(port_returns)):
         mkt_contrib = ff3_slice['Mkt-RF'].iloc[i] * expected_betas[i][0]
         smb_contrib = ff3_slice['SMB'].iloc[i] * expected_betas[i][1]
         hml_contrib = ff3_slice['HML'].iloc[i] * expected_betas[i][2]
-        alpha = port_returns.iloc[i] - (mkt_contrib + smb_contrib + hml_contrib)
+        alpha = port_returns.iloc[i] - ff3_slice['RF'].iloc[i] - (mkt_contrib + smb_contrib + hml_contrib)
 
         contrib_results.append({
             'Date': port_returns.index[i],
