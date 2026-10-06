@@ -272,7 +272,6 @@ def Transaction_Costs(initialize=False):
 # In[99]:
 
 
-# not working on back tests now?
 def extract_weights(c_portf):   
     c_portf.index = c_portf['Ticker']
     if 'Min Weight' in c_portf.columns:   # Portfolio Optimizer page passes explicit lower bounds
@@ -325,7 +324,7 @@ def noise_adjustmnet(tickers, seed,c_portf):
     return tickers
 
 
-def optimization(c_portf, max_tickers, turnover_pct=1.0):#new
+def optimization(c_portf, max_tickers, turnover_pct, old_weights):#new
     
 
     global index, wei, aux, err, binary
@@ -334,6 +333,8 @@ def optimization(c_portf, max_tickers, turnover_pct=1.0):#new
 
     if max_tickers is not None:
         I = [t for t in tickers if t in max_tickers]
+        
+
     else:
         I = list(tickers)
     # --- Local, cached index sets ---
@@ -362,16 +363,33 @@ def optimization(c_portf, max_tickers, turnover_pct=1.0):#new
     # --- Build model ---
     index = LpProblem("Index", LpMinimize)
 
-    wei    = LpVariable.dicts("Weight", I, lowBound=0)
+    # PuLP 4.0 removed LpVariable.dicts -> build the same dicts (same "Name_key" naming that others() relies on)
+    wei    = {i: LpVariable(f"Weight_{i}", lowBound=0) for i in I}
     if c_portf is not None :   # if not setting none, we set lower weight bound to what the lower weight would be for the ticker owned 
         for i in I:            # Assumption: No personal buying or selling after portoflio starts, only prior
             if i in constrained_weigths.index:
                val = float(constrained_weigths.loc[i, 'Weight'])
                wei[i].lowBound = val
         
-    aux    = LpVariable.dicts("Y",      I, lowBound=0)
-    err    = LpVariable.dicts("Error",  T, lowBound=0)
-    binary = LpVariable.dicts("bin",    I, cat=LpBinary)
+    # Optional per-ticker upper bounds (Portfolio Optimizer page, Manual Entry "Max Weight" column)
+    if c_portf is not None and 'Max Weight' in c_portf.columns:
+        max_w = pd.to_numeric(c_portf['Max Weight'], errors='coerce')
+        for i in I:
+            if i in max_w.index and np.isfinite(max_w.loc[i]):
+                wei[i].upBound = float(max_w.loc[i])
+                if wei[i].lowBound is not None and wei[i].lowBound > wei[i].upBound + 1e-9:
+                    raise ValueError(f"{i}: Min Weight ({wei[i].lowBound:.3f}) is above Max Weight ({wei[i].upBound:.3f}).")
+        cap_total = sum(1.0 if w.upBound is None else w.upBound for w in wei.values())
+        if cap_total < 1 - 1e-9:
+            raise ValueError(f"Max Weights only allow {cap_total:.1%} of the portfolio to be invested - raise some Max Weights.")
+    if c_portf is not None:
+        floor_total = sum((w.lowBound or 0.0) for w in wei.values())
+        if floor_total > 1 + 1e-9:
+            raise ValueError(f"Min Weights add up to {floor_total:.1%} - they must total 100% or less.")
+
+    aux    = {i: LpVariable(f"Y_{i}",   lowBound=0) for i in I}
+    err    = {t: LpVariable(f"Error_{t}", lowBound=0) for t in T}
+    binary = {i: LpVariable(f"bin_{i}", cat=LpBinary) for i in I}
 
     # Objective: minimize sum of absolute tracking errors
     index += lpSum(err[t] for t in T)
@@ -491,7 +509,7 @@ def portfolio_betas():
 
 
 def simulator(
-    beta1, beta2, beta3, begin, final, budget, number, c_portf, t1, rebal_freq, max_tickers, turnover_pct
+    beta1, beta2, beta3, begin, final, budget, number, c_portf, t1, rebal_freq, max_tickers, turnover_pct, old_weights
 ):
     global start
     global end
@@ -524,7 +542,7 @@ def simulator(
     famafrenchreturns(new_monthly_data)
     to_cal_stock_price(start, final)
     Transaction_Costs()
-    optimization(c_portf, max_tickers, turnover_pct)
+    optimization(c_portf, max_tickers, turnover_pct, old_weights)
     others()
     global port_betas
     port_betas = portfolio_betas()
@@ -582,6 +600,47 @@ def out_of_sampless(cccc, dddd):
     return oos1_new_performance
 
 
+def out_of_sampless(cccc, dddd, opt_port_f, old_port_f): # CLAUDE
+    """
+    Builds the growth-of-$1 frame that final_visual_compare() consumes.
+ 
+    opt_port_f / old_port_f: DataFrames indexed by ticker, each with a 'Weight'
+    column (current targets and old targets respectively).
+ 
+    Returns a DataFrame with columns ['Optimized Portfolio', 'Old Portfolio'].
+    """
+    global oos1_daily_data
+    global oos1_spy_d
+    global oos1_new_performance
+    global o1_end_d
+    global o1_start_d
+    o1_start_d = cccc
+    o1_end_d = dddd
+ 
+    w_opt = opt_port_f["Weight"].astype(float)
+    w_old = old_port_f["Weight"].astype(float)
+ 
+    # Pull returns once for the union of both ticker sets
+    tickers = list(dict.fromkeys(w_opt.index.tolist() + w_old.index.tolist()))
+    oos1_daily_data = extract_stock_data(
+        new_monthly_data,
+        tickers,
+        start=o1_start_d,
+        end=o1_end_d,
+    )
+    oos1_daily_data = oos1_daily_data.tz_localize(None)
+ 
+    # Weighted period returns for each portfolio (NaN if any held ticker is missing)
+    oos1_daily_data["Optimized Portfolio"] = oos1_daily_data[w_opt.index] @ w_opt
+    oos1_daily_data["Old Portfolio"] = oos1_daily_data[w_old.index] @ w_old
+ 
+    port_returns = oos1_daily_data[["Optimized Portfolio", "Old Portfolio"]].dropna()
+ 
+    # Growth of $1: same convention as before, value at row j compounds
+    # returns through row j-1, so the first row is exactly 1.0
+    oos1_new_performance = (1 + port_returns).cumprod().shift(1).fillna(1.0)
+ 
+    return oos1_new_performance
 # In[106]:
 
 
@@ -1709,7 +1768,7 @@ def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC):
 
 def front_end_plug(target_mkt, target_smb, target_hml,start,end,total_value,num,constrained_holdings,
 price_monthly_data1,new_monthly_data1,indexgspc1,spy_yoy_tickers1,
-max_tickers, turnover_cap):
+max_tickers, turnover_cap, old_weights):
     global price_monthly_data 
     global new_monthly_data 
     global indexgspc 
@@ -1724,7 +1783,7 @@ max_tickers, turnover_cap):
     
     indexgspc = indexgspc1.copy()
     spy_yoy_tickers = spy_yoy_tickers1.copy()
-    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings,end,'m',max_tickers,turnover_cap)
+    simulator(target_mkt, target_smb, target_hml,start,end,total_value, num,constrained_holdings,end,'m',max_tickers,turnover_cap, old_weights)
     return opt_portf_weights
 
 def monte_carlo_simulation(n_simulations,mbetaA,mbetaB,mbetaC,type, in_years1, out_years, starting_budget, rebal_freq,c_portf,price_monthly_data1,

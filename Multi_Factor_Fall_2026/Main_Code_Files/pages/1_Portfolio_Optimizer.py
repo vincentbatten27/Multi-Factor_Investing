@@ -1,8 +1,10 @@
+import os
 import streamlit as st
 import pandas as pd
 from app_common import load_data
 from RunSim_utils import *
 import statsmodels.api as sm
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="Portfolio Optimizer")
 
@@ -16,6 +18,102 @@ if today.day >= DATA_READY_DAY:
 else:
     target_date = (today - pd.DateOffset(months=1)).replace(day=1)
 window_end = target_date - pd.Timedelta(days=1)   # e.g. 2026-08-31 -> window Sep 2023 .. Aug 2026
+
+
+
+def compute_metrics(series, label, ff3):
+    """Performance stats for a growth-of-$1 series of monthly points."""
+    returns = series.pct_change().dropna()
+    months = len(returns)
+
+    # Monthly RF over exactly the return months (divide by 100 if FF is in percent)
+    rf_m = ff3.loc[returns.index[0]:returns.index[-1], "RF"]
+    rf_mean = rf_m.mean() if len(rf_m) else 0.0
+    rf_m_aligned = rf_m.reindex(returns.index, method="ffill").fillna(rf_mean)
+    rf = (1 + rf_mean) ** 12 - 1          # scalar annual RF
+
+    total_return = (series.iloc[-1] / series.iloc[0]) - 1
+    ann_return = (1 + total_return) ** (12 / months) - 1
+    volatility = returns.std() * np.sqrt(12)
+    downside_vol = np.sqrt(((returns - rf_m_aligned).clip(upper=0) ** 2).mean()) * np.sqrt(12)
+    sharpe = (ann_return - rf) / volatility if volatility != 0 else np.nan
+    sortino = (ann_return - rf) / downside_vol if downside_vol != 0 else np.nan
+
+    return {
+        "Metric": label,
+        "Total Return": f"{total_return*100:.2f}%",
+        "Annualized Return": f"{ann_return*100:.2f}%",
+        "Volatility": f"{volatility*100:.2f}%",
+        "Downside Vol": f"{downside_vol*100:.2f}%",
+        "Sharpe Ratio": f"{sharpe:.3f}",
+        "Sortino Ratio": f"{sortino:.3f}",
+    }
+
+
+def oos_compare_chart(perf_df):
+    """Growth of $1: optimized weights vs current weights, each line toggleable."""
+    c1, c2 = st.columns(2)
+    show_new = c1.checkbox("Optimized Portfolio", value=True, key="oos_show_new")
+    show_old = c2.checkbox("Current Portfolio", value=True, key="oos_show_old")
+
+    fig = go.Figure()
+    if show_old:
+        fig.add_trace(go.Scatter(
+            x=perf_df.index, y=perf_df["Old Portfolio"],
+            mode="lines+markers", name="Current Portfolio",
+            line=dict(color="black", width=2, dash="dash"),
+            marker=dict(color="black", size=5, symbol="circle"),
+            hovertemplate="%{x|%b %Y}<br>Current: $%{y:.3f}<extra></extra>",
+        ))
+    if show_new:
+        fig.add_trace(go.Scatter(
+            x=perf_df.index, y=perf_df["Optimized Portfolio"],
+            mode="lines+markers", name="Optimized Portfolio",
+            line=dict(color="royalblue", width=2.5),
+            marker=dict(color="royalblue", size=5, symbol="circle"),
+            hovertemplate="%{x|%b %Y}<br>Optimized: $%{y:.3f}<extra></extra>",
+        ))
+    if not (show_new or show_old):
+        st.info("Select at least one portfolio to plot.")
+        return
+
+    for date in perf_df.index:
+        fig.add_vline(x=date, line=dict(color="rgba(150, 150, 150, 0.2)", width=1, dash="dot"))
+
+    fig.update_layout(
+        title=dict(
+            text="Optimized vs Current Portfolio<br><sup>Growth of $1 invested</sup>",
+            font=dict(size=18),
+        ),
+        xaxis=dict(title="Date", tickformat="%b %Y", tickangle=-45, showgrid=False),
+        yaxis=dict(title="Value ($)", tickprefix="$", showgrid=True,
+                   gridcolor="rgba(200,200,200,0.3)"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified",
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        height=500,
+    )
+    st.plotly_chart(fig, width="stretch")
+
+    # Metrics for whichever portfolios are toggled on
+    rows = []
+    if show_new:
+        rows.append(compute_metrics(perf_df["Optimized Portfolio"], "Optimized Portfolio", ff3_monthly))
+    if show_old:
+        rows.append(compute_metrics(perf_df["Old Portfolio"], "Current Portfolio", ff3_monthly))
+    metrics = pd.DataFrame(rows).set_index("Metric")
+    st.dataframe(
+        metrics.style.apply(
+            lambda col: [
+                "color: royalblue" if idx == "Optimized Portfolio" else "color: black"
+                for idx in metrics.index
+            ],
+            axis=0,
+        ),
+        width="stretch",
+    )
+
 
 st.title("Portfolio Optimizer")
 st.caption(
@@ -202,7 +300,7 @@ st.divider()
 # PLACEHOLDER: Graphing and Rebalancing
 # =============================================================================
 def optimize_portfolio(
-    total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap
+    total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap, curr
 ):
     # uses the page-level target_date so the optimizer and the FF3 checks share one window
     curr_weights = target_date.date()
@@ -223,13 +321,48 @@ def optimize_portfolio(
         indexgspc1,
         spy_yoy_tickers1,
         max_tickers,
-        turnover_cap
+        turnover_cap,
+        old_weights
     )
 
     results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})
     return results_df, target_date
 
 
+
+
+OPT_PRESETS = {
+    "Max Return": "max_return",
+    "Minimum Volatility": "volatility",
+    "Max Sharpe": "sharpe",
+    "Max Sortino": "sortino",
+    "Minimum Downside Volatility": "downside_vol",
+}
+
+
+@st.cache_data(show_spinner=False)
+def get_optimal_betas(as_of):
+    """Best (MKT, SMB, HML) targets per objective from the saved strategy runs - same files the Constructor page uses.
+    Uses the file for `as_of` (YYYY-MM-DD); if that month isn't there yet, falls back to the latest earlier one."""
+    base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out, used = {}, None
+    for obj in OPT_PRESETS.values():
+        folder = os.path.join(base_path, "Front_End_Strategies_Iteration_4c_excess_surrogate", obj)
+        try:
+            files = sorted(
+                f for f in os.listdir(folder)
+                if f.startswith(f"rebal_explored_{obj}_") and f.endswith(".csv")
+                and f[len(f"rebal_explored_{obj}_"):-4] <= as_of
+            )
+            if not files:
+                continue
+            df = pd.read_csv(os.path.join(folder, files[-1]))
+            best = df.nlargest(1, "reward").iloc[0]
+            out[obj] = [float(best["c1"]), float(best["c2"]), float(best["c3"])]
+            used = files[-1][len(f"rebal_explored_{obj}_"):-4]
+        except Exception:
+            continue
+    return out, used
 
 
 st.header('Rebalance to new FF3 Exposures')
@@ -249,11 +382,19 @@ else:
     max_tickers = None
     turnover_cap = None
     edited_holdings_df = None
+    constraints_valid = True
 
     rebalance_constraints = st.radio(
         "Rebalance Constraints",
         ["Keep All Tickers Alike", "Set Turnover Threshold", "Manual Entry"],
         horizontal=True,
+        help=(
+            "**Keep All Tickers Alike**: every ticker you hold stays in the portfolio (min weight 0.1%) and the "
+            "optimizer only reweights them - no new tickers are added.\n\n"
+            "**Set Turnover Threshold**: each holding can shrink by at most the turnover % you pick (its min weight = "
+            "current weight x (1 - turnover)); the optimizer can add new tickers.\n\n"
+            "**Manual Entry**: set your own Min Weight (floor) and Max Weight (cap) per ticker."
+        ),
     )
 
     if rebalance_constraints == "Keep All Tickers Alike":
@@ -265,6 +406,7 @@ else:
         turnover_pct = st.slider(
             "Max Turnover (% of portfolio that can change)",
             min_value=5, max_value=100, value=10, step=5,
+            help="Each holding may be cut by at most this share of its current weight. 100% = no floor on any holding.",
         )
         turnover_cap = turnover_pct / 100
         constrained_df = holdings_df.copy()
@@ -275,6 +417,7 @@ else:
         st.write("**Adjust Current Portfolio:**")
 
         holdings_df["Min Weight"] = holdings_df["Weight"]
+        holdings_df["Max Weight"] = 1.0
 
         edited_holdings_df = st.data_editor(
             holdings_df,
@@ -289,33 +432,68 @@ else:
                     step=0.001,
                     format="%.3f",
                 ),
-                **{col: st.column_config.Column(disabled=True) for col in holdings_df.columns if col != "Min Weight"}
+                "Max Weight": st.column_config.NumberColumn(
+                    "Max Weight",
+                    help="Maximum weight this ticker may have after rebalancing (1.000 = no cap). Must be at least the Min Weight.",
+                    min_value=0.0,
+                    max_value=1.0,
+                    step=0.001,
+                    format="%.3f",
+                ),
+                **{col: st.column_config.Column(disabled=True) for col in holdings_df.columns if col not in ("Min Weight", "Max Weight")}
             },
             key="manual_min_weight_editor",
         )
         st.session_state.opt_constrained = edited_holdings_df.to_dict("records")
+        bad_rows = edited_holdings_df[edited_holdings_df["Max Weight"] < edited_holdings_df["Min Weight"] - 1e-9]
+        if not bad_rows.empty:
+            constraints_valid = False
+            st.error("Max Weight must be at least Min Weight for: " + ", ".join(bad_rows["Ticker"].astype(str)))
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        target_mkt = st.number_input(
-            "MKT (Market)", min_value=0.5, max_value=1.5, value=1.0, step=0.1,
-            format="%.2f", help="Market exposure (typically around 1.0)",
-        )
-    with col2:
-        target_smb = st.number_input(
-            "SMB (Size)", min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
-            format="%.2f", help="Small minus Big (positive = small cap tilt)",
-        )
-    with col3:
-        target_hml = st.number_input(
-            "HML (Value)", min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
-            format="%.2f", help="High minus Low (positive = value tilt)",
-        )
+    optimal_betas, optimal_asof = get_optimal_betas(window_end.strftime("%Y-%m-%d"))
+    preset_labels = {
+        label: f"{label} ({optimal_betas[obj][0]}, {optimal_betas[obj][1]}, {optimal_betas[obj][2]})"
+        for label, obj in OPT_PRESETS.items() if obj in optimal_betas
+    }
+    preset = st.selectbox(
+        "Choose a preset or enter custom values",
+        ["Custom"] + list(preset_labels.values()),
+        help=(
+            "Presets are the optimal FF3 targets for each objective from the latest strategy run"
+            + (f" (as of {optimal_asof})" if optimal_asof else "")
+            + " - the same values the Portfolio Constructor uses. Choose Custom to type your own."
+        ),
+    )
+
+    if preset == "Custom":
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            target_mkt = st.number_input(
+                "MKT (Market)", min_value=0.5, max_value=1.5, value=1.0, step=0.1,
+                format="%.2f", help="Market exposure (typically around 1.0)",
+            )
+        with col2:
+            target_smb = st.number_input(
+                "SMB (Size)", min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
+                format="%.2f", help="Small minus Big (positive = small cap tilt)",
+            )
+        with col3:
+            target_hml = st.number_input(
+                "HML (Value)", min_value=-1.0, max_value=1.0, value=0.0, step=0.1,
+                format="%.2f", help="High minus Low (positive = value tilt)",
+            )
+    else:
+        chosen_obj = next(OPT_PRESETS[k] for k, v in preset_labels.items() if v == preset)
+        target_mkt, target_smb, target_hml = optimal_betas[chosen_obj]
+        col1, col2, col3 = st.columns(3)
+        col1.metric("MKT (Market)", f"{target_mkt:.2f}")
+        col2.metric("SMB (Size)", f"{target_smb:.2f}")
+        col3.metric("HML (Value)", f"{target_hml:.2f}")
 
     # =============================================================================
     # OPTIMIZE BUTTON
     # =============================================================================
-    if st.button("Retrieve Weights", type="primary", width="stretch"):
+    if st.button("Retrieve Weights", type="primary", width="stretch", disabled=not constraints_valid):
         with st.spinner("Running optimization... This may take a moment."):
             constrained_holdings = (
                 pd.DataFrame(st.session_state.opt_constrained)
@@ -421,7 +599,31 @@ else:
             mime="text/csv",
             width="stretch",
         )
-  
+        # =================================================================
+        # MONTE CARLO SIMULATION
+        # =================================================================
+        st.divider()
+        st.header("Historical Monte Carlo Simulation")
+        st.subheader("Simulation Options")
+
+        col1 = st.columns([1, 1])
+        out_years = st.number_input(
+                "Testing Years",
+                min_value=1,
+                max_value=25,
+                value=1,
+                step=1,
+                help="Number of years to see results for",
+            )
+        with st.spinner("Running Monte Carlo simulation..."):
+            # out_of_sampless reads new_monthly_data as a RunSim_utils global
+            import RunSim_utils
+            RunSim_utils.new_monthly_data = new_monthly_data
+            opt_w = display_df.loc[display_df["New Weight"] != 0, ["New Weight"]].rename(columns={"New Weight": "Weight"})
+            old_w = display_df.loc[display_df["Current Weight"] != 0, ["Current Weight"]].rename(columns={"Current Weight": "Weight"})
+            oos1_list = out_of_sampless(target_date - relativedelta(years=out_years), target_date, opt_w, old_w)
+        oos_compare_chart(oos1_list)
+    
 
 footer = """
 <style>
