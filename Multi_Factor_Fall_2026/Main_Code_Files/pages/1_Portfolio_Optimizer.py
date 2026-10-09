@@ -300,7 +300,7 @@ st.divider()
 # PLACEHOLDER: Graphing and Rebalancing
 # =============================================================================
 def optimize_portfolio(
-    total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap, curr
+    total_value, constrained_holdings, target_mkt, target_smb, target_hml, max_tickers, turnover_cap, old_weights=None
 ):
     # uses the page-level target_date so the optimizer and the FF3 checks share one window
     curr_weights = target_date.date()
@@ -381,6 +381,7 @@ else:
 
     max_tickers = None
     turnover_cap = None
+    old_weights = None
     edited_holdings_df = None
     constraints_valid = True
 
@@ -391,8 +392,8 @@ else:
         help=(
             "**Keep All Tickers Alike**: every ticker you hold stays in the portfolio (min weight 0.1%) and the "
             "optimizer only reweights them - no new tickers are added.\n\n"
-            "**Set Turnover Threshold**: each holding can shrink by at most the turnover % you pick (its min weight = "
-            "current weight x (1 - turnover)); the optimizer can add new tickers.\n\n"
+            "**Set Turnover Threshold**: at most the turnover % you pick of the total portfolio is traded - it can be "
+            "spread across holdings or used to fully sell one; the optimizer can add new tickers.\n\n"
             "**Manual Entry**: set your own Min Weight (floor) and Max Weight (cap) per ticker."
         ),
     )
@@ -406,12 +407,14 @@ else:
         turnover_pct = st.slider(
             "Max Turnover (% of portfolio that can change)",
             min_value=5, max_value=100, value=10, step=5,
-            help="Each holding may be cut by at most this share of its current weight. 100% = no floor on any holding.",
+            help="Share of the total portfolio value that may be sold and reinvested. 100% = no limit.",
         )
         turnover_cap = turnover_pct / 100
         constrained_df = holdings_df.copy()
-        constrained_df["Min Weight"] = constrained_df["Weight"] * (1 - turnover_cap)
+        constrained_df["Min Weight"] = 0.0   # keeps holdings in the optimizer's universe without a per-holding floor
         st.session_state.opt_constrained = constrained_df.to_dict("records")
+        known = holdings_df[~holdings_df["Ticker"].isin(st.session_state.opt_unknown_tickers)]
+        old_weights = known.set_index("Ticker")["Weight"]
         
     elif rebalance_constraints == "Manual Entry":
         st.write("**Adjust Current Portfolio:**")
@@ -509,6 +512,7 @@ else:
                     target_hml=target_hml,
                     max_tickers=max_tickers,
                     turnover_cap=turnover_cap,
+                    old_weights=old_weights,
                 )
                 # FF3 of the new portfolio — same method/window as the current portfolio's betas above
                 new_w = results_df[["Weight"]].rename(columns={"Weight": "New Weight"})

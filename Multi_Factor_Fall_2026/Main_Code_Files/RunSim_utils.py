@@ -401,7 +401,9 @@ def optimization(c_portf, max_tickers, turnover_pct, old_weights):#new
         bw = base[i]
         index += aux[i] >= bw - wei[i]
         index += aux[i] >= wei[i] - bw
-    index += lpSum(aux[i] for i in I) <= 1
+    # aux[i] = |w_i - base_i|, so sum(aux) counts each traded dollar twice (once sold, once bought); 2 = no limit
+    max_turnover = 2 * turnover_pct if turnover_pct is not None else 2
+    index += lpSum(aux[i] for i in I) <= max_turnover
     # Error term constraints: build portfolio return once per t
     for t_idx, t in enumerate(T):
         port = lpSum(wei[i] * X[t_idx, j] for j, i in enumerate(I))
@@ -509,7 +511,7 @@ def portfolio_betas():
 
 
 def simulator(
-    beta1, beta2, beta3, begin, final, budget, number, c_portf, t1, rebal_freq, max_tickers, turnover_pct, old_weights
+    beta1, beta2, beta3, begin, final, budget, number, c_portf, t1, rebal_freq, max_tickers, turnover_pct=None, old_weights=None
 ):
     global start
     global end
@@ -535,9 +537,14 @@ def simulator(
     hml_opt = beta3  # TARGET HML BETA - EXPOSURE OF THE NEW PORTFOLIO TO VALUE FACTOR
     B = budget  # BUDGET
     q = number  # NUMBER OF STOCKS IN THE NEW PORTFOLIO
-    base_weights = (
-        base_w.T * 0
-    )  # ONLY HAVE THIS LINE OF CODE WHEN YOU ARE CONSTRUCTING THE PORTFOLIO FROM SCRATCH
+    if old_weights is not None:
+        # rebalancing an existing portfolio: turnover and transaction costs are measured from the current weights
+        base_weights = old_weights.reindex(base_w.index, fill_value=0.0)
+        base_weights = base_weights / base_weights.sum()
+    else:
+        base_weights = (
+            base_w.T * 0
+        )  # ONLY HAVE THIS LINE OF CODE WHEN YOU ARE CONSTRUCTING THE PORTFOLIO FROM SCRATCH
 
     famafrenchreturns(new_monthly_data)
     to_cal_stock_price(start, final)
