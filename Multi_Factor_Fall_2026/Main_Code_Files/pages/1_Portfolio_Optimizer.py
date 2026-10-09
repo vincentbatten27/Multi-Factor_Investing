@@ -49,12 +49,42 @@ def compute_metrics(series, label, ff3):
         "Sortino Ratio": f"{sortino:.3f}",
     }
 
+BENCHMARKS = [
+    ("mkt",    "Market",    "Market (VTI)",    "VTI", "gray",
+     "Vanguard Total Stock Market ETF: the whole US stock market. Shows whether you beat just owning everything."),
+    ("small",  "Small-cap", "Small-cap (IWM)", "IWM", "orange",
+     "iShares Russell 2000 ETF: about 2,000 smaller US companies. Usually more volatile."),
+    ("large",  "Large-cap", "Large-cap (OEF)", "OEF", "purple",
+     "iShares S&P 100 ETF: the 100 largest US companies."),
+    ("value",  "Value",     "Value (IWD)",     "IWD", "brown",
+     "iShares Russell 1000 Value ETF: large US companies that look cheap relative to their book value or earnings."),
+    ("growth", "Growth",    "Growth (IWF)",    "IWF", "teal",
+     "iShares Russell 1000 Growth ETF: large US companies with faster earnings growth and richer valuations."),
+]
+
+def _growth_of_one(monthly_returns, index):
+    """Monthly returns -> growth of $1 on perf_df's dates, starting at 1.0.
+    The shift(1) matches out_of_sampless, where each row applies the PREVIOUS row's return.
+    If perf_df is built differently, drop the shift."""
+    r = monthly_returns.loc[index].astype(float)
+    return (1 + r.shift(1).fillna(0)).cumprod()
 
 def oos_compare_chart(perf_df):
-    """Growth of $1: optimized weights vs current weights, each line toggleable."""
-    c1, c2 = st.columns(2)
-    show_new = c1.checkbox("Optimized Portfolio", value=True, key="oos_show_new")
-    show_old = c2.checkbox("Current Portfolio", value=True, key="oos_show_old")
+    """Growth of $1: optimized weights vs current weights, plus optional benchmarks."""
+    p1, p2 = st.columns(2)
+    show_new = p1.checkbox("Optimized Portfolio", value=True, key="oos_show_new",
+                           help="Portfolio using the optimizer's suggested weights.")
+    show_old = p2.checkbox("Current Portfolio", value=True, key="oos_show_old",
+                           help="Your portfolio at its current weights, with no changes.")
+
+    st.caption("Compare against:")
+    cols = st.columns(len(BENCHMARKS) + 1)
+    show_rf = cols[0].checkbox("Risk-free", value=False, key="oos_show_rf",
+        help="1-month US Treasury bill return (Fama-French RF). What cash would have earned with no risk.")
+    show = {
+        key: col.checkbox(label, value=False, key=f"oos_show_{key}", help=tip)
+        for col, (key, label, _, _, _, tip) in zip(cols[1:], BENCHMARKS)
+    }
 
     fig = go.Figure()
     if show_old:
@@ -73,6 +103,23 @@ def oos_compare_chart(perf_df):
             marker=dict(color="royalblue", size=5, symbol="circle"),
             hovertemplate="%{x|%b %Y}<br>Optimized: $%{y:.3f}<extra></extra>",
         ))
+
+    def add_line(series, name, color):
+        fig.add_trace(go.Scatter(
+            x=series.index, y=series, mode="lines", name=name,
+            line=dict(color=color, width=1.5, dash="dot"),
+            hovertemplate=f"%{{x|%b %Y}}<br>{name}: $%{{y:.3f}}<extra></extra>",
+        ))
+
+    if show_rf:
+        add_line(_growth_of_one(ff3_monthly["RF"], perf_df.index), "Risk-free (T-bills)", "green")
+    for key, _, name, ticker, color, _ in BENCHMARKS:
+        if show[key]:
+            if ticker not in new_monthly_data.columns:
+                st.warning(f"{ticker} isn't in the return data, so {name} was skipped.")
+                continue
+            add_line(_growth_of_one(new_monthly_data[ticker], perf_df.index), name, color)
+
     if not (show_new or show_old):
         st.info("Select at least one portfolio to plot.")
         return
