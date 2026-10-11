@@ -1975,7 +1975,8 @@ def portoflio_ff3(opt_portf, new_monthly_data, ff3_monthly): # input output from
     result = pd.concat([
         round(ff3_factors, 4),
         round(se, 4),
-        pd.Series({'R_squared': round(port_model.rsquared, 4)})
+        pd.Series({'R_squared': round(port_model.rsquared, 4),
+                    'Resid_Vol': round(float(np.sqrt(port_model.mse_resid)), 6)})  # monthly std of the residual, for scenario bands
     ])
     return result
 
