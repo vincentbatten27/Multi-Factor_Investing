@@ -201,7 +201,7 @@ def famafrenchreturns(new_monthly_data):
 def estimate_ff3_from_holdings(ff3_source, new_monthly_data):
     # Filter for dates after the last known date
     indeces = ["VTI", "BIL", "IWM", "OEF", "IWD", "IWF"]  # 6 total: market, RF proxy, small, large, value, growth
-    ret = new_monthly_data[indeces].loc[ff3_monthly.index.max() + relativedelta(months=1) : new_monthly_data.index.max()]
+    ret = new_monthly_data[indeces].loc[ff3_source.index.max() + relativedelta(months=1) : new_monthly_data.index.max()]
     mkt_rf = ret["VTI"] - ret["BIL"]   # market proxy minus risk-free proxy
     smb = ret["IWM"] - ret["OEF"]      # small minus large
     hml = ret["IWD"] - ret["IWF"]      # value minus growth
@@ -211,7 +211,7 @@ def estimate_ff3_from_holdings(ff3_source, new_monthly_data):
         "HML": hml,
         "RF": ret["BIL"]
     })
-    est_ff3 = pd.concat([ff3_monthly,est_ff3])
+    est_ff3 = pd.concat([ff3_source,est_ff3])
     return est_ff3
 # In[96]:
 
