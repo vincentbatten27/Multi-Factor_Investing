@@ -200,11 +200,14 @@ def famafrenchreturns(new_monthly_data):
 
 def estimate_ff3_from_holdings(ff3_source, new_monthly_data):
     # Filter for dates after the last known date
-    indeces = ["VTI", "BIL", "IWM", "OEF", "IWD", "IWF"]  # 6 total: market, RF proxy, small, large, value, growth
+    indeces = ["VTI", "BIL", "IWM", "OEF", "IWD", "IWF", "IWN", "IWO"]  # + IWN small value, IWO small growth
     ret = new_monthly_data[indeces].loc[ff3_source.index.max() + relativedelta(months=1) : new_monthly_data.index.max()]
     mkt_rf = ret["VTI"] - ret["BIL"]   # market proxy minus risk-free proxy
-    smb = ret["IWM"] - ret["OEF"]      # small minus large
-    hml = ret["IWD"] - ret["IWF"]      # value minus growth
+    # Fama-French style: average over the size x value grid so SMB and HML don't pick up each other
+    smb = (ret["IWN"] + ret["IWO"]) / 2 - (ret["IWD"] + ret["IWF"]) / 2   # small minus big, value/growth held equal
+    hml = (ret["IWN"] + ret["IWD"]) / 2 - (ret["IWO"] + ret["IWF"]) / 2   # value minus growth, in small AND big stocks
+    smb = smb.fillna(ret["IWM"] - ret["OEF"])   # months without IWN/IWO data: old simple proxies
+    hml = hml.fillna(ret["IWD"] - ret["IWF"])
     est_ff3 = pd.DataFrame({
         "Mkt-RF": mkt_rf,
         "SMB": smb,
