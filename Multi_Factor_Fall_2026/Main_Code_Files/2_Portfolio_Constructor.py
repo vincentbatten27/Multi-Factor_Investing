@@ -407,6 +407,10 @@ def optimize_portfolio(
     return results_df, target_date
 def compute_factor_attribution(port_returns, expected_betas):
     ff3 = famafrenchreturns(new_monthly_data)
+    # pct_change() of the growth-of-$1 series at label M is the return earned in month M-1
+    # (same convention as _growth_of_one's shift(1)). Relabel so returns match their own month's factors
+    port_returns = port_returns.copy()
+    port_returns.index = port_returns.index - pd.DateOffset(months=1)
     ff3_slice = ff3.reindex(port_returns.index)
 
     contrib_results = []
