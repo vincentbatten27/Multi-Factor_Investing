@@ -1860,6 +1860,7 @@ def get_premade_mrebalance_front_end(os_years, obj, num_iteration):
         path = SCRIPT_DIR / f"Front_End_Strategies_Iteration_4c_excess_surrogate/pre_raw/pre_made_df_{obj}.csv"
         df = pd.read_csv(path, index_col=0, parse_dates=True)
         df = df.iloc[-(os_years * 12):]
+        df = df / df.iloc[0]   # re-base the slice so the chart starts at $1 (the file starts at $1 in 2019)
         results.append(df)
 
     # Build expected_betas from first run's index (all runs share same dates)
