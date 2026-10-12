@@ -1966,8 +1966,11 @@ def portoflio_ff3(opt_portf, new_monthly_data, ff3_monthly): # input output from
 
     # --- Portfolio-level regression, run once on the actual weighted return series ---
     # (only the tickers that cleared the NaN check above, same set used in ff3_factors)
-    port_return = (new_monthly_data[valid_tickers] * opt_portf[valid_tickers]).sum(axis=1)
-    port_excess = port_return.loc[start_reg:end_reg] - rf
+    # today's weights held over the whole window = the same portfolio as ff3_factors above.
+    # OLS is linear in y, so this regression's betas equal ff3_factors exactly, and its
+    # SE / R2 / Resid_Vol describe that same portfolio (not a backcast with drifting weights)
+    w_now = opt_portf.iloc[-1][valid_tickers]
+    port_excess = (beta_monthly_data[valid_tickers] * w_now).sum(axis=1)
 
     X_port = sm.add_constant(ff3_monthly[['Mkt-RF', 'SMB', 'HML']].loc[start_reg:end_reg])
     assert X_port.index.equals(port_excess.index), "portfolio-level date mismatch"
