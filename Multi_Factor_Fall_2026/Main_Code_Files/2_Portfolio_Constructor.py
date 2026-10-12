@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from RunSim_utils import *
 import os
+import glob
 from app_common import load_data
 
 
@@ -141,10 +142,11 @@ def get_betas():
 
     for obj in OBJECTIVES:
         base_path = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(
-            base_path,
-            f"Front_End_Strategies_Iteration_4c_excess_surrogate/{obj}/rebal_explored_{obj}_{weights_opt_d.strftime('%Y-%m-%d')}.csv",
-        )
+        folder = os.path.join(base_path, "Front_End_Strategies_Iteration_4c_excess_surrogate", obj)
+        path = os.path.join(folder, f"rebal_explored_{obj}_{weights_opt_d.strftime('%Y-%m-%d')}.csv")
+        if not os.path.exists(path):
+            path = sorted(glob.glob(os.path.join(folder, f"rebal_explored_{obj}_*.csv")))[-1]
+            st.warning(f"No bandit file for {weights_opt_d} ({obj}). Using latest available: {os.path.basename(path)}")
         df = pd.read_csv(path)
         best = df.nlargest(1, "reward").iloc[0]
         betas[obj] = [best["c1"], best["c2"], best["c3"]]
@@ -324,7 +326,7 @@ def final_visuala(ddfs, expected_betas=None, obj=None):
     # Performance Metrics
     # =========================================================================
     def compute_metrics(series, label):
-        ff3_monthly = famafrenchreturns(mew_monthly_data)   # ideally load once outside this function
+        ff3_monthly = famafrenchreturns(new_monthly_data)   # ideally load once outside this function
 
         # Convert cumulative values to period returns
         returns = series.pct_change().dropna()
@@ -398,21 +400,25 @@ def optimize_portfolio(
         new_monthly_data,
         indexgspc1,
         spy_yoy_tickers1,
-        None,None
+        None,None, None
     )
 
     results_df = opt_portf_weights.rename(columns={"New Weights": "Weight"})
     return results_df, target_date
 def compute_factor_attribution(port_returns, expected_betas):
     ff3 = famafrenchreturns(new_monthly_data)
-    ff3_slice = ff3.loc[port_returns.index[0]:port_returns.index[-1]]
+    # pct_change() of the growth-of-$1 series at label M is the return earned in month M-1
+    # (same convention as _growth_of_one's shift(1)). Relabel so returns match their own month's factors
+    port_returns = port_returns.copy()
+    port_returns.index = port_returns.index - pd.DateOffset(months=1)
+    ff3_slice = ff3.reindex(port_returns.index)
 
     contrib_results = []
     for i in range(len(port_returns)):
         mkt_contrib = ff3_slice['Mkt-RF'].iloc[i] * expected_betas[i][0]
         smb_contrib = ff3_slice['SMB'].iloc[i] * expected_betas[i][1]
         hml_contrib = ff3_slice['HML'].iloc[i] * expected_betas[i][2]
-        alpha = port_returns.iloc[i] - (mkt_contrib + smb_contrib + hml_contrib)
+        alpha = port_returns.iloc[i] - ff3_slice['RF'].iloc[i] - (mkt_contrib + smb_contrib + hml_contrib)
 
         contrib_results.append({
             'Date': port_returns.index[i],
@@ -420,6 +426,7 @@ def compute_factor_attribution(port_returns, expected_betas):
             'SMB': smb_contrib,
             'HML': hml_contrib,
             'Alpha': alpha,
+            'RF': ff3_slice['RF'].iloc[i],   # T-bill return: return = MKT + SMB + HML + Alpha + RF
         })
 
 
@@ -653,25 +660,31 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # SECTION 1 — Full Period Summary
                 # -----------------------------------------------------------------
                 st.subheader("Full Period Summary",
-                           help="The decomposed total contributions do not sum to total returns due to the return being cumulative, while the contributions are arithmetic. " \
-                           "The monthly contributions sum perfectly to the monthly returns, but when you sum the contributions across months, it does not equal the cumulative return due to the effects of compounding.")
+                           help="Each month the portfolio return splits exactly into MKT + SMB + HML + Alpha + RF "
+                                "(MKT is beta times the market return above T-bills; RF is the T-bill return). "
+                                "The tiles add up the monthly pieces, so together they equal the sum of monthly returns. "
+                                "The Total Return in the table above is compounded, so it differs from that sum.")
 
                 hit_rates = (contrib_df > 0).mean() * 100
-                contributions = contrib_df.sum()  # cumulative arithmetic, sums perfectly
-                total_return = port_returns.sum() 
-                col1, col2, col3, col4 = st.columns(4)
+                contributions = contrib_df.sum()   # arithmetic sum over the months
+                total_return = port_returns.sum()  # = MKT + SMB + HML + Alpha + RF
+                col1, col2, col3, col4, col5 = st.columns(5)
 
-                col1.metric("MKT Total Contribution", f"{contributions['MKT']*100:.2f}%",
-                            help="Cumulative return attributed to market exposure")
-                col2.metric("SMB Total Contribution", f"{contributions['SMB']*100:.2f}%",
+                col1.metric("MKT", f"{contributions['MKT']*100:.2f}%",
+                            help="Cumulative return attributed to market exposure (above T-bills)")
+                col2.metric("SMB", f"{contributions['SMB']*100:.2f}%",
                             help="Cumulative return attributed to size factor")
-                col3.metric("HML Total Contribution", f"{contributions['HML']*100:.2f}%",
+                col3.metric("HML", f"{contributions['HML']*100:.2f}%",
                             help="Cumulative return attributed to value factor")
-                col4.metric("Alpha Total Contribution", f"{contributions['Alpha']*100:.2f}%",
+                col4.metric("Alpha", f"{contributions['Alpha']*100:.2f}%",
                             help="Cumulative residual return unexplained by FF3")
+                col5.metric("RF", f"{contributions['RF']*100:.2f}%",
+                            help="T-bill return over the period: what the money earns with no factor risk")
+                st.caption(f"MKT + SMB + HML + Alpha + RF = **{total_return*100:.2f}%**, the sum of monthly returns. "
+                           "The compounded Total Return in the table above differs only because returns compound.")
 
-                st.caption("**Factor Hit Rates** — % of months each factor contributed positively")
-                col1, col2, col3, col4 = st.columns(4)
+                st.caption("**Factor Hit Rates**: % of months each factor contributed positively")
+                col1, col2, col3, col4, col5 = st.columns(5)   # col5 left empty so the rows line up (RF is positive every month)
                 col1.metric("MKT Hit Rate", f"{hit_rates['MKT']:.1f}%")
                 col2.metric("SMB Hit Rate", f"{hit_rates['SMB']:.1f}%")
                 col3.metric("HML Hit Rate", f"{hit_rates['HML']:.1f}%")

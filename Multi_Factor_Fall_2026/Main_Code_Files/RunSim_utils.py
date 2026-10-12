@@ -80,8 +80,8 @@ def extract_stock_data(df, tdickers, start, end):
                 print()
                # print(f"Column '{col}' could not be converted to float.")
     df_selected.interpolate(method='linear',inplace=True)
-    df_selected = df_selected.fillna(method='ffill')
-    df_selected = df_selected.fillna(method='bfill')
+    df_selected = df_selected.ffill()
+    df_selected = df_selected.bfill()
     return df_selected
 
 
@@ -200,18 +200,21 @@ def famafrenchreturns(new_monthly_data):
 
 def estimate_ff3_from_holdings(ff3_source, new_monthly_data):
     # Filter for dates after the last known date
-    indeces = ["VTI", "BIL", "IWM", "OEF", "IWD", "IWF"]  # 6 total: market, RF proxy, small, large, value, growth
-    ret = new_monthly_data[indeces].loc[ff3_monthly.index.max() + relativedelta(months=1) : new_monthly_data.index.max()]
+    indeces = ["VTI", "BIL", "IWM", "OEF", "IWD", "IWF", "IWN", "IWO"]  # + IWN small value, IWO small growth
+    ret = new_monthly_data[indeces].loc[ff3_source.index.max() + relativedelta(months=1) : new_monthly_data.index.max()]
     mkt_rf = ret["VTI"] - ret["BIL"]   # market proxy minus risk-free proxy
-    smb = ret["IWM"] - ret["OEF"]      # small minus large
-    hml = ret["IWD"] - ret["IWF"]      # value minus growth
+    # Fama-French style: average over the size x value grid so SMB and HML don't pick up each other
+    smb = (ret["IWN"] + ret["IWO"]) / 2 - (ret["IWD"] + ret["IWF"]) / 2   # small minus big, value/growth held equal
+    hml = (ret["IWN"] + ret["IWD"]) / 2 - (ret["IWO"] + ret["IWF"]) / 2   # value minus growth, in small AND big stocks
+    smb = smb.fillna(ret["IWM"] - ret["OEF"])   # months without IWN/IWO data: old simple proxies
+    hml = hml.fillna(ret["IWD"] - ret["IWF"])
     est_ff3 = pd.DataFrame({
         "Mkt-RF": mkt_rf,
         "SMB": smb,
         "HML": hml,
         "RF": ret["BIL"]
     })
-    est_ff3 = pd.concat([ff3_monthly,est_ff3])
+    est_ff3 = pd.concat([ff3_source,est_ff3])
     return est_ff3
 # In[96]:
 
@@ -607,7 +610,7 @@ def out_of_sampless(cccc, dddd):
     return oos1_new_performance
 
 
-def out_of_sampless(cccc, dddd, opt_port_f, old_port_f): # CLAUDE
+def out_of_sampless_compare(cccc, dddd, opt_port_f, old_port_f): # CLAUDE
     """
     Builds the growth-of-$1 frame that final_visual_compare() consumes.
  
@@ -1857,6 +1860,7 @@ def get_premade_mrebalance_front_end(os_years, obj, num_iteration):
         path = SCRIPT_DIR / f"Front_End_Strategies_Iteration_4c_excess_surrogate/pre_raw/pre_made_df_{obj}.csv"
         df = pd.read_csv(path, index_col=0, parse_dates=True)
         df = df.iloc[-(os_years * 12):]
+        df = df / df.iloc[0]   # re-base the slice so the chart starts at $1 (the file starts at $1 in 2019)
         results.append(df)
 
     # Build expected_betas from first run's index (all runs share same dates)
@@ -1962,8 +1966,11 @@ def portoflio_ff3(opt_portf, new_monthly_data, ff3_monthly): # input output from
 
     # --- Portfolio-level regression, run once on the actual weighted return series ---
     # (only the tickers that cleared the NaN check above, same set used in ff3_factors)
-    port_return = (new_monthly_data[valid_tickers] * opt_portf[valid_tickers]).sum(axis=1)
-    port_excess = port_return.loc[start_reg:end_reg] - rf
+    # today's weights held over the whole window = the same portfolio as ff3_factors above.
+    # OLS is linear in y, so this regression's betas equal ff3_factors exactly, and its
+    # SE / R2 / Resid_Vol describe that same portfolio (not a backcast with drifting weights)
+    w_now = opt_portf.iloc[-1][valid_tickers]
+    port_excess = (beta_monthly_data[valid_tickers] * w_now).sum(axis=1)
 
     X_port = sm.add_constant(ff3_monthly[['Mkt-RF', 'SMB', 'HML']].loc[start_reg:end_reg])
     assert X_port.index.equals(port_excess.index), "portfolio-level date mismatch"
@@ -1975,7 +1982,8 @@ def portoflio_ff3(opt_portf, new_monthly_data, ff3_monthly): # input output from
     result = pd.concat([
         round(ff3_factors, 4),
         round(se, 4),
-        pd.Series({'R_squared': round(port_model.rsquared, 4)})
+        pd.Series({'R_squared': round(port_model.rsquared, 4),
+                    'Resid_Vol': round(float(np.sqrt(port_model.mse_resid)), 6)})  # monthly std of the residual, for scenario bands
     ])
     return result
 
@@ -2516,6 +2524,10 @@ def run_sp500_data():
     return indexgspc1, spy_yoy_tickers1
 
 def update_spy(indexgspc1):
+    # Benchmark = SPY total return (dividends reinvested), from Alpha Vantage 'adjusted close'.
+    # Stock returns are total return (Alpaca Adjustment.ALL), so the benchmark must be too.
+    # spy_data.csv 'sprtrn' is the S&P 500 price return; it is kept only for months before
+    # AV's SPY history starts (1999), which no backtest uses (stock data starts 2016).
     ts = TimeSeries(key='CPT85HPR5S2L405H', output_format='pandas')
     data, meta_data = ts.get_monthly_adjusted(symbol='SPY')
     
@@ -2525,18 +2537,18 @@ def update_spy(indexgspc1):
     # Sort ascending (AV returns descending)
     data = data.sort_index(ascending=True)
     
-    # Calculate return: pct change from previous month's adjusted close
-    data['SP_500'] = data['close'].pct_change()
+    # Total return: pct change of the dividend-adjusted close
+    data['SP_500'] = data['adjusted close'].pct_change()
     
     # Re-index to 1st of the month to match your convention
     # (Dec 1st = return from Nov 1st close to Dec 1st close)
     data.index = data.index.to_period('M').to_timestamp()  # 'MS' = month start
     
-    # Filter to only new months not already in indexgspc1
-    latest_date = indexgspc1.index.max()
-    data = data[data.index > latest_date]
-    av_spy = data['SP_500'].dropna() 
-    indexgspc1 = pd.concat([indexgspc1,av_spy])
+    av_spy = data['SP_500'].dropna()
+    # SPY total return replaces the stored price return wherever AV has it
+    price_only = indexgspc1.loc[indexgspc1.index < av_spy.index.min(), ['SP_500']]
+    indexgspc1 = pd.concat([price_only, av_spy.to_frame('SP_500')])
+    indexgspc1.index.name = 'Date'
     return indexgspc1
 
 
