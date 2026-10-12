@@ -2521,6 +2521,10 @@ def run_sp500_data():
     return indexgspc1, spy_yoy_tickers1
 
 def update_spy(indexgspc1):
+    # Benchmark = SPY total return (dividends reinvested), from Alpha Vantage 'adjusted close'.
+    # Stock returns are total return (Alpaca Adjustment.ALL), so the benchmark must be too.
+    # spy_data.csv 'sprtrn' is the S&P 500 price return; it is kept only for months before
+    # AV's SPY history starts (1999), which no backtest uses (stock data starts 2016).
     ts = TimeSeries(key='CPT85HPR5S2L405H', output_format='pandas')
     data, meta_data = ts.get_monthly_adjusted(symbol='SPY')
     
@@ -2530,18 +2534,18 @@ def update_spy(indexgspc1):
     # Sort ascending (AV returns descending)
     data = data.sort_index(ascending=True)
     
-    # Calculate return: pct change from previous month's adjusted close
-    data['SP_500'] = data['close'].pct_change()
+    # Total return: pct change of the dividend-adjusted close
+    data['SP_500'] = data['adjusted close'].pct_change()
     
     # Re-index to 1st of the month to match your convention
     # (Dec 1st = return from Nov 1st close to Dec 1st close)
     data.index = data.index.to_period('M').to_timestamp()  # 'MS' = month start
     
-    # Filter to only new months not already in indexgspc1
-    latest_date = indexgspc1.index.max()
-    data = data[data.index > latest_date]
-    av_spy = data['SP_500'].dropna() 
-    indexgspc1 = pd.concat([indexgspc1,av_spy])
+    av_spy = data['SP_500'].dropna()
+    # SPY total return replaces the stored price return wherever AV has it
+    price_only = indexgspc1.loc[indexgspc1.index < av_spy.index.min(), ['SP_500']]
+    indexgspc1 = pd.concat([price_only, av_spy.to_frame('SP_500')])
+    indexgspc1.index.name = 'Date'
     return indexgspc1
 
 
