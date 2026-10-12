@@ -426,6 +426,7 @@ def compute_factor_attribution(port_returns, expected_betas):
             'SMB': smb_contrib,
             'HML': hml_contrib,
             'Alpha': alpha,
+            'RF': ff3_slice['RF'].iloc[i],   # T-bill return: return = MKT + SMB + HML + Alpha + RF
         })
 
 
@@ -659,25 +660,31 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
                 # SECTION 1 — Full Period Summary
                 # -----------------------------------------------------------------
                 st.subheader("Full Period Summary",
-                           help="The decomposed total contributions do not sum to total returns due to the return being cumulative, while the contributions are arithmetic. " \
-                           "The monthly contributions sum perfectly to the monthly returns, but when you sum the contributions across months, it does not equal the cumulative return due to the effects of compounding.")
+                           help="Each month the portfolio return splits exactly into MKT + SMB + HML + Alpha + RF "
+                                "(MKT is beta times the market return above T-bills; RF is the T-bill return). "
+                                "The tiles add up the monthly pieces, so together they equal the sum of monthly returns. "
+                                "The Total Return in the table above is compounded, so it differs from that sum.")
 
                 hit_rates = (contrib_df > 0).mean() * 100
-                contributions = contrib_df.sum()  # cumulative arithmetic, sums perfectly
-                total_return = port_returns.sum() 
-                col1, col2, col3, col4 = st.columns(4)
+                contributions = contrib_df.sum()   # arithmetic sum over the months
+                total_return = port_returns.sum()  # = MKT + SMB + HML + Alpha + RF
+                col1, col2, col3, col4, col5 = st.columns(5)
 
-                col1.metric("MKT Total Contribution", f"{contributions['MKT']*100:.2f}%",
-                            help="Cumulative return attributed to market exposure")
-                col2.metric("SMB Total Contribution", f"{contributions['SMB']*100:.2f}%",
+                col1.metric("MKT", f"{contributions['MKT']*100:.2f}%",
+                            help="Cumulative return attributed to market exposure (above T-bills)")
+                col2.metric("SMB", f"{contributions['SMB']*100:.2f}%",
                             help="Cumulative return attributed to size factor")
-                col3.metric("HML Total Contribution", f"{contributions['HML']*100:.2f}%",
+                col3.metric("HML", f"{contributions['HML']*100:.2f}%",
                             help="Cumulative return attributed to value factor")
-                col4.metric("Alpha Total Contribution", f"{contributions['Alpha']*100:.2f}%",
+                col4.metric("Alpha", f"{contributions['Alpha']*100:.2f}%",
                             help="Cumulative residual return unexplained by FF3")
+                col5.metric("RF", f"{contributions['RF']*100:.2f}%",
+                            help="T-bill return over the period: what the money earns with no factor risk")
+                st.caption(f"MKT + SMB + HML + Alpha + RF = **{total_return*100:.2f}%**, the sum of monthly returns. "
+                           "The compounded Total Return in the table above differs only because returns compound.")
 
-                st.caption("**Factor Hit Rates** — % of months each factor contributed positively")
-                col1, col2, col3, col4 = st.columns(4)
+                st.caption("**Factor Hit Rates**: % of months each factor contributed positively")
+                col1, col2, col3, col4, col5 = st.columns(5)   # col5 left empty so the rows line up (RF is positive every month)
                 col1.metric("MKT Hit Rate", f"{hit_rates['MKT']:.1f}%")
                 col2.metric("SMB Hit Rate", f"{hit_rates['SMB']:.1f}%")
                 col3.metric("HML Hit Rate", f"{hit_rates['HML']:.1f}%")
