@@ -1,3 +1,6 @@
 date,objective,start_index
 2026-09-30,max_return,5
 2026-09-30,sharpe,110
+2026-09-30,sortino,147
+2026-09-30,volatility,210
+2026-09-30,downside_vol,284
