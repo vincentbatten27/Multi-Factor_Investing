@@ -667,12 +667,12 @@ else:
                 help="Number of years to see results for",
             )
         with st.spinner("Running Monte Carlo simulation..."):
-            # out_of_sampless reads new_monthly_data as a RunSim_utils global
+            # out_of_sampless_compare reads new_monthly_data as a RunSim_utils global
             import RunSim_utils
             RunSim_utils.new_monthly_data = new_monthly_data
             opt_w = display_df.loc[display_df["New Weight"] != 0, ["New Weight"]].rename(columns={"New Weight": "Weight"})
             old_w = display_df.loc[display_df["Current Weight"] != 0, ["Current Weight"]].rename(columns={"Current Weight": "Weight"})
-            oos1_list = out_of_sampless(target_date - relativedelta(years=out_years), target_date, opt_w, old_w)
+            oos1_list = out_of_sampless_compare(target_date - relativedelta(years=out_years), target_date, opt_w, old_w)
         oos_compare_chart(oos1_list)
     
 

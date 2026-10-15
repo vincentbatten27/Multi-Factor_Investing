@@ -607,7 +607,7 @@ def out_of_sampless(cccc, dddd):
     return oos1_new_performance
 
 
-def out_of_sampless(cccc, dddd, opt_port_f, old_port_f): # CLAUDE
+def out_of_sampless_compare(cccc, dddd, opt_port_f, old_port_f):
     """
     Builds the growth-of-$1 frame that final_visual_compare() consumes.
  
