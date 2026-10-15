@@ -324,7 +324,7 @@ def final_visuala(ddfs, expected_betas=None, obj=None):
     # Performance Metrics
     # =========================================================================
     def compute_metrics(series, label):
-        ff3_monthly = famafrenchreturns(mew_monthly_data)   # ideally load once outside this function
+        ff3_monthly = famafrenchreturns(new_monthly_data)   # ideally load once outside this function
 
         # Convert cumulative values to period returns
         returns = series.pct_change().dropna()
