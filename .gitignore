@@ -11,3 +11,8 @@
 
 # Ignore specific CSV file with a space in the name
 daat copy.csv
+# Python cache and macOS/Excel junk
+__pycache__/
+*.pyc
+.DS_Store
+~$*
