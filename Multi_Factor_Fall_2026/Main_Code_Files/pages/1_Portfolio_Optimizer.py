@@ -5,6 +5,8 @@ from app_common import load_data
 from RunSim_utils import *
 import statsmodels.api as sm
 import plotly.graph_objects as go
+import json
+from pathlib import Path
 
 st.set_page_config(page_title="Portfolio Optimizer")
 
@@ -683,8 +685,6 @@ else:
 # e.g. {"IWD": -0.10}. The analysis step reads st.session_state["scenario"].
 # Pre-canned shocks in scenarios.json are cumulative returns over each scenario's start/end window.
 # =============================================================================
-import json
-from pathlib import Path
 
 SCENARIO_FILE = Path(__file__).resolve().parent.parent / "scenarios.json"   # Main_Code_Files/scenarios.json
 
@@ -775,7 +775,7 @@ def scen_precanned(scenarios):
         st.write(s["notes"])
         for url in s["sources"]:
             st.markdown(f"- {url}")
-     n = max(1, round((pd.Timestamp(s["end"]) - pd.Timestamp(s["start"])).days / 30.4))
+    n = max(1, round((pd.Timestamp(s["end"]) - pd.Timestamp(s["start"])).days / 30.4))
     return key, scen_resolve(dict(s["shocks"]),n)
  
  
