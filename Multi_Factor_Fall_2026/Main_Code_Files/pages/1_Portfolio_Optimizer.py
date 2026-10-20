@@ -707,7 +707,7 @@ def scen_load(file_mtime):
         return json.load(fh)
  
  
-def scen_hist(months=120):
+def scen_hist(months=108):
     """Monthly returns of the SCEN_BASKETS ETFs over the last `months` COMPLETE months (about 10 years)."""
     h = new_monthly_data[list(SCEN_BASKETS)].dropna()
     now = pd.Timestamp.today()
@@ -716,7 +716,7 @@ def scen_hist(months=120):
     return h.iloc[-months:]
  
  
-def scen_links(pinned, hist):
+def scen_links(pinned, hist, months):
     """YOUR MATH GOES HERE.
  
     pinned: {ETF: shock as a decimal}  baskets the user has set. Can be EMPTY (nothing set yet).
@@ -724,14 +724,24 @@ def scen_links(pinned, hist):
     Return {ETF: (center, lo, hi)} for every ETF NOT in pinned:
         center = the linked shock (what the slider snaps to),
         lo, hi = allowed range for that slider (center + min/max historical residual).
-    Placeholder below: no linking (everything 0) and no limit (+-50%)."""
-    return {t: (0.0, -0.5, 0.5) for t in hist.columns if t not in pinned}
+    """
+        
+    timeseries_hist = np.expm1(np.log1p(hist).rolling(months).sum()).dropna()
+    C = timeseries_hist.cov() #  covariance of all ETFs
+    p =  list(pinned)
+    f = [t for t in hist.columns if t not in p] # non pinned columns
+    beta = np.linalg.solve(C.loc[p,p], C.loc[p,f].values)  # solve for the betas of non-pinned ETFs on pinned ETFs
+    center= beta.T @ np.array([pinned[t] for t in p])  # linked shocks for non-pinned ETFs
+    resid = hist[f] - hist[p].values @ beta  # residuals of non-pinned ETFs after regressing on pinned ETFs
+    lo,hi = center + resid.min(), center + resid.max()  # allowed ranges for non-pinned ETFs
+
+    return {t: (center, lo, hi) for t in hist.columns if t not in pinned}
  
  
-def scen_resolve(pinned):
+def scen_resolve(pinned,months):
     """All baskets: the pinned ones as given, the rest from scen_links."""
     out = {t: {"shock": v, "lo": v, "hi": v, "source": "set"} for t, v in pinned.items()}
-    for t, (c, lo, hi) in scen_links(pinned, scen_hist()).items():
+    for t, (c, lo, hi) in scen_links(pinned, scen_hist(),months).items():
         out[t] = {"shock": c, "lo": lo, "hi": hi, "source": "linked"}
     return {t: out[t] for t in SCEN_BASKETS if t in out}
  
@@ -765,7 +775,7 @@ def scen_precanned(scenarios):
         st.write(s["notes"])
         for url in s["sources"]:
             st.markdown(f"- {url}")
-    return key, scen_resolve(dict(s["shocks"]))
+    return key, scen_resolve(dict(s["shocks"]),months)
  
  
 # ---- custom: sliders that move together ------------------------------------------------------
@@ -776,7 +786,7 @@ def scen_touch(t):
         return
     val = ss[f"scen_shock_{t}"] / 100
     if t not in ss["scen_pinned"]:
-        r = scen_resolve(ss["scen_pinned"])[t]
+        r = scen_resolve(ss["scen_pinned"], months)[t]
         val = min(max(val, r["lo"]), r["hi"])
         ss[f"scen_shock_{t}"] = round(val * 200) / 2          # back to percent, nearest 0.5
     ss["scen_pinned"][t] = val
@@ -806,7 +816,7 @@ def scen_custom():
         pinned = ss["scen_pinned"]
     else:
         pinned = {t: ss[f"scen_shock_{t}"] / 100 for t in SCEN_BASKETS}
-    resolved = scen_resolve(pinned)
+    resolved = scen_resolve(pinned, months)
     if ss["scen_link_on"]:                                     # move the linked sliders before they are drawn
         for t, r in resolved.items():
             if r["source"] == "linked":
@@ -838,7 +848,8 @@ if st.session_state.get("opt_results") is not None:
  
     st.session_state["scenario"] = scenario                    # str key (pre-canned), dict (custom), or None
     st.session_state["scenario_resolved"] = scen_res if scenario is not None else None
- 
+    st.number_input("Months the move happens over", 1, 12, 1, key="months", help="The scenario's shocks are applied over this many months.")
+    
     st.subheader("Selected scenario")
     if scenario is None:
         st.warning("Move a slider to build a custom scenario.")
