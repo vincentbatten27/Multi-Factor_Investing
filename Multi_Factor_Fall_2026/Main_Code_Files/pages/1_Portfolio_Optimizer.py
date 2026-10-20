@@ -695,8 +695,6 @@ SCEN_BASKETS = {
     "OEF": ("Large-cap", "iShares S&P 100 ETF: the 100 largest US companies."),
     "IWD": ("Value", "iShares Russell 1000 Value ETF: large companies that look cheap versus book value or earnings."),
     "IWF": ("Growth", "iShares Russell 1000 Growth ETF: large companies with above-average growth."),
-    "IWN": ("Small value", "iShares Russell 2000 Value ETF."),
-    "IWO": ("Small growth", "iShares Russell 2000 Growth ETF."),
 }
 
 
@@ -717,8 +715,7 @@ def scen_hist(months=108):
  
  
 def scen_links(pinned, hist, months):
-    """YOUR MATH GOES HERE.
- 
+    """
     pinned: {ETF: shock as a decimal}  baskets the user has set. Can be EMPTY (nothing set yet).
     hist:   DataFrame of monthly ETF returns, last ~10 years, columns = SCEN_BASKETS.
     Return {ETF: (center, lo, hi)} for every ETF NOT in pinned:
@@ -735,8 +732,7 @@ def scen_links(pinned, hist, months):
     resid = timeseries_hist[f] - timeseries_hist[p].values @ beta  # residuals of non-pinned ETFs after regressing on pinned ETFs
     lo,hi = center + resid.min(), center + resid.max()  # allowed ranges for non-pinned ETFs
 
-    return {t: (0, -0.5, 0.5) for t in hist.columns if t not in pinned}
- 
+    return {t: (center[i], lo.iloc[i], hi.iloc[i]) for i, t in enumerate(f)} 
  
 def scen_resolve(pinned,months):
     """All baskets: the pinned ones as given, the rest from scen_links."""
@@ -825,7 +821,7 @@ def scen_custom():
                 ss[f"scen_shock_{t}"] = max(-50.0, min(50.0, round(r["shock"] * 200) / 2))
  
     for t, (name, desc) in SCEN_BASKETS.items():
-        st.slider(f"{t} · {name}: one-month move (%)", -50.0, 50.0, step=0.5, key=f"scen_shock_{t}",
+        st.slider(f"{t} · {name}: total move (%)", -50.0, 50.0, step=0.5, key=f"scen_shock_{t}",
                   on_change=scen_touch, args=(t,), help=desc)
         r = resolved[t]
         if ss["scen_link_on"] and r["source"] == "linked":
