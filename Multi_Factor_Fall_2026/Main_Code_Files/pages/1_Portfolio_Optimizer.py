@@ -676,6 +676,187 @@ else:
         oos_compare_chart(oos1_list)
     
 
+# =============================================================================
+# SCENARIO ANALYSIS
+# Step 1: choose a scenario. Pre-canned -> st.session_state["scenario"] is the KEY of an entry in
+# scenarios.json (a string). Custom -> it is a dict of ETF basket shocks (decimals, one month),
+# e.g. {"IWD": -0.10}. The analysis step reads st.session_state["scenario"].
+# Pre-canned shocks in scenarios.json are cumulative returns over each scenario's start/end window.
+# =============================================================================
+import json
+from pathlib import Path
+
+SCENARIO_FILE = Path(__file__).resolve().parent.parent / "scenarios.json"   # Main_Code_Files/scenarios.json
+
+# ETF baskets available for custom shocks (same ETFs used as benchmarks above)
+SCEN_BASKETS = {
+    "VTI": ("Market", "Vanguard Total Stock Market ETF: the whole US stock market."),
+    "IWM": ("Small-cap", "iShares Russell 2000 ETF: about 2,000 smaller US companies."),
+    "OEF": ("Large-cap", "iShares S&P 100 ETF: the 100 largest US companies."),
+    "IWD": ("Value", "iShares Russell 1000 Value ETF: large companies that look cheap versus book value or earnings."),
+    "IWF": ("Growth", "iShares Russell 1000 Growth ETF: large companies with above-average growth."),
+    "IWN": ("Small value", "iShares Russell 2000 Value ETF."),
+    "IWO": ("Small growth", "iShares Russell 2000 Growth ETF."),
+}
+
+
+@st.cache_data
+def scen_load(file_mtime):
+    """file_mtime is only here so editing scenarios.json refreshes the cache."""
+    with open(SCENARIO_FILE, encoding="utf-8") as fh:
+        return json.load(fh)
+ 
+ 
+def scen_hist(months=120):
+    """Monthly returns of the SCEN_BASKETS ETFs over the last `months` COMPLETE months (about 10 years)."""
+    h = new_monthly_data[list(SCEN_BASKETS)].dropna()
+    now = pd.Timestamp.today()
+    if (h.index.max().year, h.index.max().month) == (now.year, now.month):
+        h = h.iloc[:-1]                      # the current month is still in progress
+    return h.iloc[-months:]
+ 
+ 
+def scen_links(pinned, hist):
+    """YOUR MATH GOES HERE.
+ 
+    pinned: {ETF: shock as a decimal}  baskets the user has set. Can be EMPTY (nothing set yet).
+    hist:   DataFrame of monthly ETF returns, last ~10 years, columns = SCEN_BASKETS.
+    Return {ETF: (center, lo, hi)} for every ETF NOT in pinned:
+        center = the linked shock (what the slider snaps to),
+        lo, hi = allowed range for that slider (center + min/max historical residual).
+    Placeholder below: no linking (everything 0) and no limit (+-50%)."""
+    return {t: (0.0, -0.5, 0.5) for t in hist.columns if t not in pinned}
+ 
+ 
+def scen_resolve(pinned):
+    """All baskets: the pinned ones as given, the rest from scen_links."""
+    out = {t: {"shock": v, "lo": v, "hi": v, "source": "set"} for t, v in pinned.items()}
+    for t, (c, lo, hi) in scen_links(pinned, scen_hist()).items():
+        out[t] = {"shock": c, "lo": lo, "hi": hi, "source": "linked"}
+    return {t: out[t] for t in SCEN_BASKETS if t in out}
+ 
+ 
+def scen_table(shocks):
+    return pd.DataFrame({
+        "ETF": list(shocks),
+        "Basket": [SCEN_BASKETS.get(t, (t,))[0] for t in shocks],
+        "Shock": [f"{v:+.1%}" for v in shocks.values()],
+    })
+ 
+ 
+def scen_resolved_table(resolved):
+    return pd.DataFrame({
+        "ETF": list(resolved),
+        "Basket": [SCEN_BASKETS[t][0] for t in resolved],
+        "Shock": [f"{r['shock']:+.1%}" for r in resolved.values()],
+        "Source": [r["source"] for r in resolved.values()],
+        "Allowed range": ["" if r["source"] == "set" else f"{r['lo']:+.1%} to {r['hi']:+.1%}" for r in resolved.values()],
+    })
+ 
+ 
+def scen_precanned(scenarios):
+    """Returns (scenario KEY (a string), resolved shocks for all baskets)."""
+    key = st.selectbox("Scenario", list(scenarios), format_func=lambda k: scenarios[k]["name"], key="scen_key")
+    s = scenarios[key]
+    st.write(s["description"])
+    st.caption(f'{s["start"]} to {s["end"]} · {s["type"]} · {s["basis"]}')
+    st.dataframe(scen_table(s["shocks"]), hide_index=True)
+    with st.expander("Notes and sources"):
+        st.write(s["notes"])
+        for url in s["sources"]:
+            st.markdown(f"- {url}")
+    return key, scen_resolve(dict(s["shocks"]))
+ 
+ 
+# ---- custom: sliders that move together ------------------------------------------------------
+def scen_touch(t):
+    """on_change for a slider: pin it (a linked slider is first held inside its allowed range)."""
+    ss = st.session_state
+    if not ss["scen_link_on"]:
+        return
+    val = ss[f"scen_shock_{t}"] / 100
+    if t not in ss["scen_pinned"]:
+        r = scen_resolve(ss["scen_pinned"])[t]
+        val = min(max(val, r["lo"]), r["hi"])
+        ss[f"scen_shock_{t}"] = round(val * 200) / 2          # back to percent, nearest 0.5
+    ss["scen_pinned"][t] = val
+ 
+ 
+def scen_reset():
+    st.session_state["scen_pinned"] = {}
+    for t in SCEN_BASKETS:
+        st.session_state[f"scen_shock_{t}"] = 0.0
+ 
+ 
+def scen_custom():
+    """Returns (dict {ETF: shock} the user set, or None; resolved shocks for all baskets)."""
+    ss = st.session_state
+    ss.setdefault("scen_pinned", {})
+    ss.setdefault("scen_link_on", True)
+    for t in SCEN_BASKETS:
+        ss.setdefault(f"scen_shock_{t}", 0.0)
+ 
+    c1, c2 = st.columns([3, 1])
+    c1.toggle("Link baskets", key="scen_link_on",
+              help="On: move one slider and the others follow their historical relationship to it (last 10 years). "
+                   "Every slider you touch becomes fixed; the rest keep following.")
+    c2.button("Reset", on_click=scen_reset, width="stretch")
+ 
+    if ss["scen_link_on"]:
+        pinned = ss["scen_pinned"]
+    else:
+        pinned = {t: ss[f"scen_shock_{t}"] / 100 for t in SCEN_BASKETS}
+    resolved = scen_resolve(pinned)
+    if ss["scen_link_on"]:                                     # move the linked sliders before they are drawn
+        for t, r in resolved.items():
+            if r["source"] == "linked":
+                ss[f"scen_shock_{t}"] = max(-50.0, min(50.0, round(r["shock"] * 200) / 2))
+ 
+    for t, (name, desc) in SCEN_BASKETS.items():
+        st.slider(f"{t} · {name}: one-month move (%)", -50.0, 50.0, step=0.5, key=f"scen_shock_{t}",
+                  on_change=scen_touch, args=(t,), help=desc)
+        r = resolved[t]
+        if ss["scen_link_on"] and r["source"] == "linked":
+            st.caption(f"linked · allowed range {r['lo']:+.1%} to {r['hi']:+.1%}")
+ 
+    shocks = {t: round(r["shock"], 4) for t, r in resolved.items() if r["source"] == "set"}
+    return (shocks or None), resolved
+ 
+ 
+# ---- section --------------------------------------------------------------------------------
+# Only show once weights have been retrieved (same gate as the results above)
+if st.session_state.get("opt_results") is not None:
+    st.divider()
+    st.header("Scenario Analysis")
+    st.caption("Choose a pre-canned historical scenario or build a custom basket shock.")
+ 
+    scen_mode = st.radio("Scenario source", ["Pre-canned", "Custom"], horizontal=True, key="scen_mode")
+    if scen_mode == "Pre-canned":
+        scenario, scen_res = scen_precanned(scen_load(SCENARIO_FILE.stat().st_mtime))
+    else:
+        scenario, scen_res = scen_custom()
+ 
+    st.session_state["scenario"] = scenario                    # str key (pre-canned), dict (custom), or None
+    st.session_state["scenario_resolved"] = scen_res if scenario is not None else None
+ 
+    st.subheader("Selected scenario")
+    if scenario is None:
+        st.warning("Move a slider to build a custom scenario.")
+    else:
+        if isinstance(scenario, str):
+            st.write("Pre-canned scenario key:")
+            st.code(scenario, language=None)
+        else:
+            st.write("Custom scenario (what you set):")
+            st.json(scenario)
+        st.write("All baskets, after linking:")
+        st.dataframe(scen_resolved_table(scen_res), hide_index=True)
+ 
+    # Next: the adjusted betas (adjusted_betas) and the scenario math read st.session_state["scenario_resolved"].
+    st.info("Next: the analysis step reads st.session_state['scenario_resolved'] and the adjusted betas, "
+            "then computes the portfolio impact and bands.")
+
+
 footer = """
 <style>
 .footer {

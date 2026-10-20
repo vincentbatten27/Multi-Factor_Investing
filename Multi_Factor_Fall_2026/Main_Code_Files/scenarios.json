@@ -1,0 +1,60 @@
+{
+  "q4_2018_selloff": {
+    "name": "Q4 2018 selloff",
+    "type": "bear",
+    "description": "Rate-hike and growth scare. Stocks fell sharply into year-end 2018, with small caps hit hardest.",
+    "start": "2018-10-01",
+    "end": "2018-12-31",
+    "basis": "cumulative return over the window",
+    "shocks": {"VTI": -0.135, "IWM": -0.202},
+    "notes": "Q4 2018 returns as reported by the source: S&P 500 -13.5% (used as the proxy for VTI) and Russell 2000 -20.2% (used for IWM). The source does not say whether these are price or total return.",
+    "sources": ["https://monetagroup.com/investments-report-2018-review-stock-market/"]
+  },
+  "covid_crash_2020": {
+    "name": "COVID crash (2020)",
+    "type": "bear",
+    "description": "The fastest 30%+ drop on record: February 19 peak to March 23 low.",
+    "start": "2020-02-19",
+    "end": "2020-03-23",
+    "basis": "cumulative return over the window",
+    "shocks": {"VTI": -0.339},
+    "notes": "S&P 500 close-to-close, 3,386.15 to 2,237.40 (-33.9%), used as the proxy for VTI. Only the market move was verified. Size and value effects are left for the analysis step to imply.",
+    "sources": ["https://fffinstill.com/learning/concepts/covid-19-market-crash-2020"]
+  },
+  "vaccine_rally_2020": {
+    "name": "Vaccine rally (Nov 2020)",
+    "type": "bull",
+    "description": "Vaccine news set off a broad rally, with small caps outrunning large caps and a rotation from growth to value.",
+    "start": "2020-11-01",
+    "end": "2020-11-30",
+    "basis": "cumulative return over the window",
+    "shocks": {"VTI": 0.1095, "IWM": 0.1843},
+    "notes": "November 2020: S&P 500 +10.95% (proxy for VTI) and Russell 2000 +18.43% (IWM). Sources describe the growth-to-value rotation but no monthly style returns were verified, so none are included.",
+    "sources": ["https://ccmg.com/public/_pdf/_history/2020-11-30-performance_summary-benchmark_review_monthly_recap.pdf"]
+  },
+  "rate_shock_2022": {
+    "name": "Rate shock (2022)",
+    "type": "bear",
+    "description": "Fed rate hikes. Growth stocks were hit far harder than value.",
+    "start": "2022-01-01",
+    "end": "2022-12-31",
+    "basis": "cumulative return over the window",
+    "shocks": {"VTI": -0.1811, "IWM": -0.2044, "IWD": -0.0522, "IWF": -0.2941},
+    "notes": "Calendar 2022: S&P 500 -18.11% (proxy for VTI), Russell 2000 -20.44% (IWM). IWD and IWF use the S&P 500 Value (-5.22%) and Growth (-29.41%) indices as proxies for the Russell 1000 style indices, so treat the style numbers as approximate. The source does not say whether returns are price or total.",
+    "sources": ["https://fultonbank.com/Education-Center/FFA/Economic-Update-2022-Review"]
+  },
+  "tariff_shock_2025": {
+    "name": "Tariff shock (2025)",
+    "type": "bear",
+    "description": "Tariff announcements triggered a sharp selloff from the February 19 peak to the April 8 low.",
+    "start": "2025-02-19",
+    "end": "2025-04-08",
+    "basis": "cumulative return over the window",
+    "shocks": {"VTI": -0.189},
+    "notes": "S&P 500 close-to-close, 6,144.15 (Feb 19) to 4,982.77 (Apr 8), a -18.9% drop computed from the levels in the SIFMA report, used as the proxy for VTI. Intraday the drop reached -21.4% on Apr 7 per another source. No small-cap or style figures were verified.",
+    "sources": [
+      "https://www.sifma.org/wp-content/uploads/2025/04/SIFMA-Insights-Monthly-Metrics_April_2025.pdf",
+      "https://www.marcus.com/us/en/resources/heard-at-gs/april-2025-market-recap"
+    ]
+  }
+}

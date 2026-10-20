@@ -1990,6 +1990,136 @@ def portoflio_ff3(opt_portf, new_monthly_data, ff3_monthly): # input output from
 # In[142]:
 
 
+FACTORS = ["Mkt-RF", "SMB", "HML"]
+FIXED_PRIOR = {"Mkt-RF": 1.0, "SMB": 0.0, "HML": 0.0}
+
+
+def _ols_betas_and_se(X, Y):
+    """OLS of every column of Y on [1, X] in one shot.
+
+    X: DataFrame (months x factors).  Y: DataFrame (months x tickers).
+    Returns (betas, ses), each a DataFrame (tickers x factors). Intercept is estimated
+    but not returned. SEs are the classic OLS ones (same as statsmodels' .bse).
+    """
+    n = len(X)
+    Xc = np.column_stack([np.ones(n), X.to_numpy(float)])
+    k = Xc.shape[1]
+    xtx_inv = np.linalg.inv(Xc.T @ Xc)
+    B = xtx_inv @ Xc.T @ Y.to_numpy(float)                 # k x tickers
+    resid = Y.to_numpy(float) - Xc @ B
+    sigma2 = (resid ** 2).sum(axis=0) / (n - k)            # residual variance per ticker
+    se = np.sqrt(np.outer(np.diag(xtx_inv), sigma2))       # k x tickers
+    betas = pd.DataFrame(B[1:].T, index=Y.columns, columns=X.columns)
+    ses = pd.DataFrame(se[1:].T, index=Y.columns, columns=X.columns)
+    return betas, ses
+
+
+def _winsorize(s, p):
+    """Clip a Series to its p / 1-p quantiles so a few junk tickers can't drive the prior."""
+    if not p:
+        return s
+    lo, hi = s.quantile([p, 1 - p])
+    return s.clip(lo, hi)
+
+
+def adjusted_betas(opt_portf, new_monthly_data, ff3_monthly, portf_ff3=None,
+                   prior="fixed", tau_floor=1e-4, winsor=0.01):
+    """Per-ticker Vasicek shrinkage of FF3 betas, aggregated to the portfolio.
+
+    Same inputs as portoflio_ff3:
+        opt_portf         output of optimal_weights_appended (Date x Ticker weights)
+        new_monthly_data  monthly returns (Date x Ticker)
+        ff3_monthly       factor table with Mkt-RF, SMB, HML, RF
+    Optional:
+        portf_ff3         the output of portoflio_ff3, used only as a consistency check:
+                          the aggregated RAW betas here should match it.
+        prior             "fixed"    -> shrink Mkt-RF toward 1, SMB and HML toward 0
+                          "universe" -> shrink each factor toward the cross-sectional mean
+        tau_floor         smallest allowed prior variance (keeps weights away from 0)
+        winsor            clip the cross-section at this tail fraction when estimating the prior
+
+    Method, per factor k and ticker i:
+        w(i,k)     = tau2(k) / (tau2(k) + se(i,k)^2)
+        beta_adj   = w * beta_raw + (1 - w) * prior_mean(k)
+        tau2(k)    = mean((beta_raw - prior_mean)^2) - mean(se^2), floored.
+                     (With prior="universe" this is the usual Var(beta) - mean(se^2).)
+    The cross-section is every ticker with a complete history in the window.
+
+    Returns (summary, ticker_table), or the same warning string portoflio_ff3 uses when
+    more than 10% of the portfolio's tickers lack data.
+    """
+    start, end = opt_portf.index.min(), opt_portf.index.max()
+    X = ff3_monthly[FACTORS].loc[start:end]
+    rf = ff3_monthly.loc[start:end, "RF"]
+    Y = new_monthly_data.loc[start:end].sub(rf, axis=0)
+    assert X.index.equals(Y.index), "date mismatch between factors and returns"
+    Y = Y.dropna(axis=1, how="any")                         # complete history only, as in portoflio_ff3
+
+    betas, ses = _ols_betas_and_se(X, Y)
+
+    held = [t for t in opt_portf.columns if t in betas.index]
+    if len(opt_portf.columns) - len(held) > 0.1 * len(opt_portf.columns):
+        return "More than 10% of the tickers have insufficient data for regression. Please check the input data."
+
+    # ---- prior from the cross-section ----
+    b_w = betas.apply(lambda c: _winsorize(c, winsor))
+    s2_w = (ses ** 2).apply(lambda c: _winsorize(c, winsor))
+    if prior == "universe":
+        prior_mean = b_w.mean()
+    elif prior == "fixed":
+        prior_mean = pd.Series(FIXED_PRIOR)[FACTORS]
+    else:
+        raise ValueError("prior must be 'fixed' or 'universe'")
+    tau2 = (((b_w - prior_mean) ** 2).mean() - s2_w.mean()).clip(lower=tau_floor)
+
+    # ---- shrink ----
+    w = tau2 / (tau2 + ses ** 2)                            # weight kept on the raw beta
+    adj = w * betas + (1 - w) * prior_mean
+
+    # ---- aggregate with today's weights (no renormalising, same as portoflio_ff3) ----
+    wt = opt_portf.iloc[-1][held]
+    raw_p = betas.loc[held].mul(wt, axis=0).sum()
+    adj_p = adj.loc[held].mul(wt, axis=0).sum()
+
+    summary = pd.DataFrame({
+        "Raw": raw_p,
+        "Adjusted": adj_p,
+        "Change": adj_p - raw_p,
+        "Prior_Mean": prior_mean,
+        "Tau": np.sqrt(tau2),
+        "Avg_w_on_raw": w.loc[held].mul(wt, axis=0).sum() / wt.sum(),
+    }).round(4)
+    summary.attrs["universe_size"] = len(betas)
+    summary.attrs["weight_coverage"] = float(wt.sum() / opt_portf.iloc[-1].sum())
+
+    ticker_table = pd.concat({"Raw": betas.loc[held], "SE": ses.loc[held],
+                              "w": w.loc[held], "Adjusted": adj.loc[held]}, axis=1)
+
+    if portf_ff3 is not None:
+        gap = (raw_p - portf_ff3[FACTORS].astype(float)).abs().max()
+        if gap > 1e-3:
+            warnings.warn(f"Aggregated raw betas differ from portoflio_ff3 by {gap:.4f}; "
+                          "check that both used the same window and weights.")
+    return summary, ticker_table
+
+
+def vasicek_from_portfolio_output(portf_ff3, tau, prior_mean=None):
+    """Quick version that uses ONLY the portoflio_ff3 output.
+
+    tau: prior std dev of true betas, one number or {factor: number}. You must supply it,
+    because a single portfolio's output cannot tell you how betas vary across assets.
+    Caveat: portfolio-level SEs are small (diversification), so the weights come out near 1
+    and the adjustment is mild. Prefer adjusted_betas() for the real analysis.
+    """
+    prior = pd.Series(FIXED_PRIOR if prior_mean is None else prior_mean)[FACTORS]
+    tau = pd.Series(float(tau), index=FACTORS) if np.isscalar(tau) else pd.Series(tau)[FACTORS]
+    raw = portf_ff3[FACTORS].astype(float)
+    se = pd.Series({f: float(portf_ff3[f"{f}_SE"]) for f in FACTORS})
+    w = tau ** 2 / (tau ** 2 + se ** 2)
+    adj = w * raw + (1 - w) * prior
+    return pd.DataFrame({"Raw": raw, "SE": se, "w_on_raw": w, "Prior": prior, "Adjusted": adj}).round(4)
+
+
 def performance_metrics(df_roi,periods_per_year):
     start = str(df_roi.index[0])
     end   = str(df_roi.index[-1])
