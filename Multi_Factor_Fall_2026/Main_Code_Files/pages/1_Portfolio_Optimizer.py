@@ -782,10 +782,11 @@ def scen_touch(t):
     if not ss["scen_link_on"]:
         return
     val = ss[f"scen_shock_{t}"] / 100
-    if t not in ss["scen_pinned"]:
-        r = scen_resolve(ss["scen_pinned"], ss["scen_months"])[t]
+    others = {k: v for k, v in ss["scen_pinned"].items() if k != t}
+    if others:                                   # nothing else pinned -> first shock is unrestricted
+        r = scen_resolve(others, ss["scen_months"])[t]
         val = min(max(val, r["lo"]), r["hi"])
-        ss[f"scen_shock_{t}"] = round(val * 200) / 2          # back to percent, nearest 0.5
+        ss[f"scen_shock_{t}"] = round(val * 200) / 2
     ss["scen_pinned"][t] = val
  
  
