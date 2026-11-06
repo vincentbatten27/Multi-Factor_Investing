@@ -6,20 +6,11 @@
     "start": "2018-10-01",
     "end": "2018-12-31",
     "basis": "cumulative return over the window",
-    "shocks": {"VTI": -0.135, "IWM": -0.202},
-    "notes": "Q4 2018 returns as reported by the source: S&P 500 -13.5% (used as the proxy for VTI) and Russell 2000 -20.2% (used for IWM). The source does not say whether these are price or total return.",
+    "shocks": {"VTI": -0.135, "IWM": -0.202, "IWD": -0.117, "IWF": -0.1583, "OEF": -0.135},
+    "highlights": ["IWM"],
+    "highlight_note": "Small caps hit hardest (IWM -20.2% vs OEF -13.5%); growth lagged value by about 4 points.",
+    "notes": "Q4 2018 returns as reported by the source: S&P 500 -13.5% (used as the proxy for VTI) and Russell 2000 -20.2% (used for IWM). The source does not say whether these are price or total return. Missing ETFs are filled from the repo's monthly_returns.csv over the same window: IWD -11.7%, IWF -15.8%, OEF -13.5%.",
     "sources": ["https://monetagroup.com/investments-report-2018-review-stock-market/"]
-  },
-  "covid_crash_2020": {
-    "name": "COVID crash (2020)",
-    "type": "bear",
-    "description": "The fastest 30%+ drop on record: February 19 peak to March 23 low.",
-    "start": "2020-02-19",
-    "end": "2020-03-23",
-    "basis": "cumulative return over the window",
-    "shocks": {"VTI": -0.339},
-    "notes": "S&P 500 close-to-close, 3,386.15 to 2,237.40 (-33.9%), used as the proxy for VTI. Only the market move was verified. Size and value effects are left for the analysis step to imply.",
-    "sources": ["https://fffinstill.com/learning/concepts/covid-19-market-crash-2020"]
   },
   "vaccine_rally_2020": {
     "name": "Vaccine rally (Nov 2020)",
@@ -28,8 +19,10 @@
     "start": "2020-11-01",
     "end": "2020-11-30",
     "basis": "cumulative return over the window",
-    "shocks": {"VTI": 0.1095, "IWM": 0.1843},
-    "notes": "November 2020: S&P 500 +10.95% (proxy for VTI) and Russell 2000 +18.43% (IWM). Sources describe the growth-to-value rotation but no monthly style returns were verified, so none are included.",
+    "shocks": {"VTI": 0.1095, "IWM": 0.1843, "IWD": 0.1342, "IWF": 0.1033, "OEF": 0.102},
+    "highlights": ["IWM", "IWD"],
+    "highlight_note": "Small caps led (IWM +18.4% vs OEF +10.2%) and value beat growth (IWD +13.4% vs IWF +10.3%).",
+    "notes": "November 2020: S&P 500 +10.95% (proxy for VTI) and Russell 2000 +18.43% (IWM). Missing ETFs are filled from the repo's monthly_returns.csv over the same window: IWD +13.4%, IWF +10.3%, OEF +10.2%. Sources describe the growth-to-value rotation.",
     "sources": ["https://ccmg.com/public/_pdf/_history/2020-11-30-performance_summary-benchmark_review_monthly_recap.pdf"]
   },
   "rate_shock_2022": {
@@ -39,22 +32,42 @@
     "start": "2022-01-01",
     "end": "2022-12-31",
     "basis": "cumulative return over the window",
-    "shocks": {"VTI": -0.1811, "IWM": -0.2044, "IWD": -0.0522, "IWF": -0.2941},
-    "notes": "Calendar 2022: S&P 500 -18.11% (proxy for VTI), Russell 2000 -20.44% (IWM). IWD and IWF use the S&P 500 Value (-5.22%) and Growth (-29.41%) indices as proxies for the Russell 1000 style indices, so treat the style numbers as approximate. The source does not say whether returns are price or total.",
+    "shocks": {"VTI": -0.1811, "IWM": -0.2044, "IWD": -0.0522, "IWF": -0.2941, "OEF": -0.2102},
+    "highlights": ["IWF", "IWD"],
+    "highlight_note": "Growth crushed (IWF -29.4%) while value held up (IWD -5.2%): a roughly 24 point style gap.",
+    "notes": "Calendar 2022: S&P 500 -18.11% (proxy for VTI), Russell 2000 -20.44% (IWM). IWD and IWF use the S&P 500 Value (-5.22%) and Growth (-29.41%) indices as proxies for the Russell 1000 style indices, so treat the style numbers as approximate. The source does not say whether returns are price or total. Missing ETFs are filled from the repo's monthly_returns.csv over the same window: OEF -21.0%.",
     "sources": ["https://fultonbank.com/Education-Center/FFA/Economic-Update-2022-Review"]
   },
-  "tariff_shock_2025": {
-    "name": "Tariff shock (2025)",
-    "type": "bear",
-    "description": "Tariff announcements triggered a sharp selloff from the February 19 peak to the April 8 low.",
-    "start": "2025-02-19",
-    "end": "2025-04-08",
+  "growth_rally_2023": {
+    "name": "AI-led growth rally (2023)",
+    "type": "bull",
+    "description": "Mega-cap tech and AI drove growth far ahead of value, and large caps well ahead of small caps.",
+    "start": "2023-01-01",
+    "end": "2023-12-31",
     "basis": "cumulative return over the window",
-    "shocks": {"VTI": -0.189},
-    "notes": "S&P 500 close-to-close, 6,144.15 (Feb 19) to 4,982.77 (Apr 8), a -18.9% drop computed from the levels in the SIFMA report, used as the proxy for VTI. Intraday the drop reached -21.4% on Apr 7 per another source. No small-cap or style figures were verified.",
+    "shocks": {"VTI": 0.263, "IWM": 0.169, "OEF": 0.3271, "IWD": 0.115, "IWF": 0.427},
+    "highlights": ["IWF", "IWD"],
+    "highlight_note": "Growth far ahead of value (IWF +42.7% vs IWD +11.5%, a gap of about 31 points); small caps lagged large (IWM +16.9% vs OEF +32.7%).",
+    "notes": "Calendar 2023: S&P 500 +26.3% (proxy for VTI), Russell 2000 +16.9% (IWM), Russell 1000 Value +11.5% (IWD), Russell 1000 Growth +42.7% (IWF). The Moneta table does not say total or price return, but the figures look like total returns. Missing ETFs are filled from the repo's monthly_returns.csv over the same window: OEF +32.7%.",
     "sources": [
-      "https://www.sifma.org/wp-content/uploads/2025/04/SIFMA-Insights-Monthly-Metrics_April_2025.pdf",
-      "https://www.marcus.com/us/en/resources/heard-at-gs/april-2025-market-recap"
+      "https://monetagroup.com/wp-content/uploads/2024/08/Moneta-Monthly-Market-Recap-July-2024.pdf",
+      "https://www.lseg.com/content/dam/ftse-russell/en_us/documents/market-insights/russell-us-index-spotlight/us-russell-quarterly-spotlight-q4-2023.pdf"
+    ]
+  },
+  "rotation_jul_2024": {
+    "name": "Small-cap and value rotation (Jul 2024)",
+    "type": "rotation",
+    "description": "A rate-cut and soft-landing rotation out of mega-cap growth. Small caps and value surged while the broad market barely moved.",
+    "start": "2024-07-01",
+    "end": "2024-07-31",
+    "basis": "cumulative return over the window",
+    "shocks": {"VTI": 0.0186, "IWM": 0.1016, "OEF": 0.0034, "IWD": 0.051, "IWF": -0.017},
+    "highlights": ["IWM", "IWD", "IWF"],
+    "highlight_note": "Market nearly flat (VTI +1.9%, OEF +0.3%) but small caps +10.2%, value +5.1% and growth -1.7%: almost a pure SMB and HML shock.",
+    "notes": "July 2024 total returns: Russell 3000 +1.86% (proxy for VTI), Russell 2000 +10.16% (IWM), Russell 1000 Value +5.1% (IWD), Russell 1000 Growth -1.7% (IWF). Missing ETFs are filled from the repo's monthly_returns.csv over the same window: OEF +0.3%.",
+    "sources": [
+      "https://pages.cetera.com/rs/211-FLX-077/images/CIM%20Monthly%20Recap%20July%202024.pdf?version=0",
+      "https://monetagroup.com/wp-content/uploads/2024/08/Moneta-Monthly-Market-Recap-July-2024.pdf"
     ]
   }
 }

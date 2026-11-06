@@ -686,9 +686,12 @@ else:
 # Pre-canned shocks in scenarios.json are cumulative returns over each scenario's start/end window.
 # =============================================================================
 
+# pre-canned scenarios live in scenarios.json. add or remove a scenario by editing that file, no code change
 SCENARIO_FILE = Path(__file__).resolve().parent.parent / "scenarios.json"   # Main_Code_Files/scenarios.json
 
 # ETF baskets available for custom shocks (same ETFs used as benchmarks above)
+# the 5 ETFs we shock. VTI = whole market, IWM = small, OEF = large, IWD = value, IWF = growth.
+# only 5 so the factor proxies later stay simple (market, small-minus-large, value-minus-growth)
 SCEN_BASKETS = {
     "VTI": ("Market", "Vanguard Total Stock Market ETF: the whole US stock market."),
     "IWM": ("Small-cap", "iShares Russell 2000 ETF: about 2,000 smaller US companies."),
@@ -698,6 +701,7 @@ SCEN_BASKETS = {
 }
 
 
+# cached so slider moves don't re-read the file. the mtime argument busts the cache when i edit the json
 @st.cache_data
 def scen_load(file_mtime):
     """file_mtime is only here so editing scenarios.json refreshes the cache."""
@@ -707,10 +711,13 @@ def scen_load(file_mtime):
  
 def scen_hist(months=108):
     """Monthly returns of the SCEN_BASKETS ETFs over the last `months` COMPLETE months (about 10 years)."""
+    # monthly returns for just our 5 ETFs, only months where all 5 have data
     h = new_monthly_data[list(SCEN_BASKETS)].dropna()
+    # the current month isn't finished, so drop it (a half month would skew the newest data point)
     now = pd.Timestamp.today()
     if (h.index.max().year, h.index.max().month) == (now.year, now.month):
         h = h.iloc[:-1]                      # the current month is still in progress
+    # keep the last `months` (default 108 = 10 years). this is the history the linking learns from
     return h.iloc[-months:]
  
  
@@ -723,25 +730,38 @@ def scen_links(pinned, hist, months):
         lo, hi = allowed range for that slider (center + min/max historical residual).
     """
         
+    # roll monthly returns into cumulative returns over a window as long as the scenario (3 month shock -> 3 month windows),
+    # so the history is comparable to the shock instead of being 1 month noise
     timeseries_hist = np.expm1(np.log1p(hist).rolling(months).sum()).dropna()
     C = timeseries_hist.cov() #  covariance of all ETFs
+    # p = ETFs i set (pinned), f = the rest (free). the free ones are what we solve for
     p =  list(pinned)
     f = [t for t in hist.columns if t not in p] # non pinned columns
+    # regress the free ETFs on the pinned ones straight from the covariance matrix: C_pp @ b = C_pf.
+    # b[i, j] = how much free ETF j moves per 1.0 move in pinned ETF i, historically
     beta = np.linalg.solve(C.loc[p,p].values, C.loc[p,f].values)  # solve for the betas of non-pinned ETFs on pinned ETFs
+    # linked shock = those betas x the shocks i set. this is where the slider snaps to
     center= beta.T @ np.array([pinned[t] for t in p])  # linked shocks for non-pinned ETFs
+    # the part of each free ETF the pinned ones did NOT explain in each historical window
     resid = timeseries_hist[f] - timeseries_hist[p].values @ beta  # residuals of non-pinned ETFs after regressing on pinned ETFs
+    # slider range = linked value + worst/best historical miss, so a linked slider can only go where history has been
     lo,hi = center + resid.min(), center + resid.max()  # allowed ranges for non-pinned ETFs
 
     return {t: (center[i], lo.iloc[i], hi.iloc[i]) for i, t in enumerate(f)} 
  
 def scen_resolve(pinned,months):
     """All baskets: the pinned ones as given, the rest from scen_links."""
+    # ETFs i set keep my exact number (source = set). lo = hi = shock because they can't move
     out = {t: {"shock": v, "lo": v, "hi": v, "source": "set"} for t, v in pinned.items()}
+    # everything else gets its linked value and range (source = linked).
+    # pre-canned scenarios list all 5 ETFs now, so nothing gets linked there
     for t, (c, lo, hi) in scen_links(pinned, scen_hist(),months).items():
         out[t] = {"shock": c, "lo": lo, "hi": hi, "source": "linked"}
+    # always return in the same ETF order so the tables look the same every time
     return {t: out[t] for t in SCEN_BASKETS if t in out}
  
  
+# small table of the shocks as listed in the json (before any linking)
 def scen_table(shocks):
     return pd.DataFrame({
         "ETF": list(shocks),
@@ -750,6 +770,7 @@ def scen_table(shocks):
     })
  
  
+# same table after linking, with where each number came from and the allowed range
 def scen_resolved_table(resolved):
     return pd.DataFrame({
         "ETF": list(resolved),
@@ -762,6 +783,7 @@ def scen_resolved_table(resolved):
  
 def scen_precanned(scenarios):
     """Returns (scenario KEY (a string), resolved shocks for all baskets)."""
+    # dropdown of every scenario in the json. the key (not the display name) is what gets stored
     key = st.selectbox("Scenario", list(scenarios), format_func=lambda k: scenarios[k]["name"], key="scen_key")
     s = scenarios[key]
     st.write(s["description"])
@@ -771,7 +793,10 @@ def scen_precanned(scenarios):
         st.write(s["notes"])
         for url in s["sources"]:
             st.markdown(f"- {url}")
+    # scenario length in months from its start/end dates (30.4 = avg days in a month), at least 1.
+    # the analysis needs it for the unexplained-return part of the SE, so it's stashed in session_state below
     n = max(1, round((pd.Timestamp(s["end"]) - pd.Timestamp(s["start"])).days / 30.4))
+    st.session_state["scen_n"] = n
     return key, scen_resolve(dict(s["shocks"]),n)
  
  
@@ -779,17 +804,23 @@ def scen_precanned(scenarios):
 def scen_touch(t):
     """on_change for a slider: pin it (a linked slider is first held inside its allowed range)."""
     ss = st.session_state
+    # link off: sliders are independent, so nothing to pin or clamp
     if not ss["scen_link_on"]:
         return
+    # slider is in percent, everything else is decimals
     val = ss[f"scen_shock_{t}"] / 100
+    # the other sliders i've already pinned
     others = {k: v for k, v in ss["scen_pinned"].items() if k != t}
     if others:                                   # nothing else pinned -> first shock is unrestricted
+        # what history says this slider may be, given what's already pinned. clamp to that range
         r = scen_resolve(others, ss["scen_months"])[t]
         val = min(max(val, r["lo"]), r["hi"])
         ss[f"scen_shock_{t}"] = round(val * 200) / 2
+    # pin it. from now on the other sliders follow this one
     ss["scen_pinned"][t] = val
  
  
+# reset button: un-pin everything and put the sliders back at 0
 def scen_reset():
     st.session_state["scen_pinned"] = {}
     for t in SCEN_BASKETS:
@@ -799,6 +830,7 @@ def scen_reset():
 def scen_custom():
     """Returns (dict {ETF: shock} the user set, or None; resolved shocks for all baskets)."""
     ss = st.session_state
+    # scen_pinned = the sliders i've actually touched. those are the 'set' ones, the rest are linked
     ss.setdefault("scen_pinned", {})
     ss.setdefault("scen_link_on", True)
     for t in SCEN_BASKETS:
@@ -810,17 +842,23 @@ def scen_custom():
                    "Every slider you touch becomes fixed; the rest keep following.")
     c2.button("Reset", on_click=scen_reset, width="stretch")
 
+    # how long the move takes. longer = wider allowed ranges for linked sliders and a bigger unexplained-return SE
     months = st.number_input("Months the move happens over", 1, 12, 1, key="scen_months", help="The scenario's shocks are applied over this many months.")
     if ss["scen_link_on"]:
+        # link on: only the sliders i touched are fixed
         pinned = ss["scen_pinned"]
     else:
+        # link off: every slider is fixed at whatever it says
         pinned = {t: ss[f"scen_shock_{t}"] / 100 for t in SCEN_BASKETS}
+    # fill in the sliders i haven't touched from history
     resolved = scen_resolve(pinned, months)
     if ss["scen_link_on"]:                                     # move the linked sliders before they are drawn
+        # streamlit wants widget values set BEFORE the sliders get drawn, so move the linked ones now (clamped to the -50..50 slider)
         for t, r in resolved.items():
             if r["source"] == "linked":
                 ss[f"scen_shock_{t}"] = max(-50.0, min(50.0, round(r["shock"] * 200) / 2))
  
+    # one slider per ETF. touching one runs scen_touch, which pins it
     for t, (name, desc) in SCEN_BASKETS.items():
         st.slider(f"{t} · {name}: total move (%)", -50.0, 50.0, step=0.5, key=f"scen_shock_{t}",
                   on_change=scen_touch, args=(t,), help=desc)
@@ -828,10 +866,46 @@ def scen_custom():
         if ss["scen_link_on"] and r["source"] == "linked":
             st.caption(f"linked · allowed range {r['lo']:+.1%} to {r['hi']:+.1%}")
  
+    # the custom scenario is only what i set. linked values are derived, not part of the scenario
     shocks = {t: round(r["shock"], 4) for t, r in resolved.items() if r["source"] == "set"}
     return (shocks or None), resolved
  
  
+# ---- analysis: ETF shocks -> factor shocks -> portfolio return + SE band ---------------------
+# the adjusted betas are betas to the 3 FF factors, but the scenarios shock ETFs. so first i turn the
+# 5 ETF shocks into 3 factor shocks, then return = sum of (adjusted beta x factor shock).
+
+def scen_factor_shocks(resolved):
+    """ETF shocks -> factor shocks, as decimals, cumulative over the scenario.
+    resolved = {ETF: {"shock", "lo", "hi", "source"}} for all 5 ETFs (st.session_state["scenario_resolved"])."""
+    s = {t: r["shock"] for t, r in resolved.items()}
+    return {
+        "Mkt-RF": s["VTI"],          # market = the whole market (ignoring the risk-free rate, it's tiny over a scenario)
+        "SMB": s["IWM"] - s["OEF"],  # size = small minus large
+        "HML": s["IWD"] - s["IWF"],  # value = value minus growth
+    }
+
+
+def scen_analysis(factor_shocks, adj, port_ff3, months, total_value):
+    """Factor shocks + adjusted betas -> portfolio return, $ P/L, each factor's contribution, and an SE band.
+    adj = summary table from adjusted_betas() (uses its "Adjusted" column); port_ff3 = portoflio_ff3() output."""
+    shocks = pd.Series(factor_shocks)[FACTORS]
+    beta = adj["Adjusted"][FACTORS]
+    contrib = beta * shocks                  # each factor's piece of the return (the "exposure change")
+    ret = float(contrib.sum())               # return = beta_mkt*Mkt + beta_smb*SMB + beta_hml*HML
+
+    # SE part 1: we don't know the betas exactly. error in each beta x how big that factor's shock is.
+    # (treats the 3 beta errors as independent, a simplification. also these SEs come from the RAW betas)
+    se_beta = float(np.sqrt(sum((port_ff3[f"{f}_SE"] * shocks[f]) ** 2 for f in FACTORS)))
+    # SE part 2: the return the 3 factors never explain. monthly residual vol, scaled up over the scenario length
+    se_resid = float(port_ff3["Resid_Vol"] * np.sqrt(months))
+    # assuming those two are independent, they add in quadrature
+    se = float(np.hypot(se_beta, se_resid))
+
+    return {"return": ret, "dollar_pl": ret * total_value, "contributions": contrib, "betas": beta, "shocks": shocks,
+            "se": se, "se_beta": se_beta, "se_resid": se_resid, "lo": ret - 1.96 * se, "hi": ret + 1.96 * se}
+
+
 # ---- section --------------------------------------------------------------------------------
 # Only show once weights have been retrieved (same gate as the results above)
 if st.session_state.get("opt_results") is not None:
@@ -839,12 +913,15 @@ if st.session_state.get("opt_results") is not None:
     st.header("Scenario Analysis")
     st.caption("Choose a pre-canned historical scenario or build a custom basket shock.")
  
+    # pre-canned (from the json) or custom (my own sliders)
     scen_mode = st.radio("Scenario source", ["Pre-canned", "Custom"], horizontal=True, key="scen_mode")
     if scen_mode == "Pre-canned":
         scenario, scen_res = scen_precanned(scen_load(SCENARIO_FILE.stat().st_mtime))
     else:
         scenario, scen_res = scen_custom()
  
+    # stash the choice for the analysis below. scenario = key string (pre-canned) / dict of what i set (custom) / None.
+    # scenario_resolved = all 5 ETFs after linking, which is what the factor math reads
     st.session_state["scenario"] = scenario                    # str key (pre-canned), dict (custom), or None
     st.session_state["scenario_resolved"] = scen_res if scenario is not None else None
     
@@ -861,9 +938,48 @@ if st.session_state.get("opt_results") is not None:
         st.write("All baskets, after linking:")
         st.dataframe(scen_resolved_table(scen_res), hide_index=True)
  
-    # Next: the adjusted betas (adjusted_betas) and the scenario math read st.session_state["scenario_resolved"].
-    st.info("Next: the analysis step reads st.session_state['scenario_resolved'] and the adjusted betas, "
-            "then computes the portfolio impact and bands.")
+    # ---- project the scenario onto the portfolios -----------------------------------------------
+    if scenario is not None:
+        res = st.session_state["opt_results"]
+        # scenario length in months: pre-canned stashes it in scen_precanned, custom is the number box
+        months = st.session_state["scen_n"] if scen_mode == "Pre-canned" else st.session_state["scen_months"]
+        fshocks = scen_factor_shocks(scen_res)
+
+        # the optimizer doesn't keep the extrapolated new weights, so rebuild them the same way it did
+        new_w = res["weights"][["Weight"]].rename(columns={"Weight": "New Weight"})
+        new_extrap = optimal_weights_appended(new_w, price_monthly_data, window_end)
+
+        # same math on the current portfolio and the recommended one, side by side
+        results = {}
+        for label, wts, ff3 in [("Current", df_extrap, curr_ff3), ("Recommended", new_extrap, res["ff3"])]:
+            if ff3 is None or isinstance(ff3, str):
+                st.warning(f"{label} portfolio: betas unavailable, skipping.")
+                continue
+            adj = adjusted_betas(wts, new_monthly_data, ff3_monthly, portf_ff3=ff3)
+            if isinstance(adj, str):                                  # same "too many missing tickers" warning string
+                st.warning(f"{label} portfolio: {adj}")
+                continue
+            results[label] = scen_analysis(fshocks, adj[0], ff3, months, res["total_value"])
+
+        if results:
+            st.subheader("Projected impact")
+            cols = st.columns(len(results))
+            for col, (label, out) in zip(cols, results.items()):
+                col.metric(f"{label} portfolio", f"{out['return']:+.1%}",
+                           help="Sum over the 3 factors of adjusted beta x factor shock.")
+                col.write(f"**${out['dollar_pl']:+,.0f}**")
+                col.caption(f"95% band {out['lo']:+.1%} to {out['hi']:+.1%} | SE {out['se']:.2%} "
+                            f"({out['se_beta']:.2%} beta uncertainty, {out['se_resid']:.2%} unexplained)")
+
+            # where the return comes from: factor shock x beta = contribution, per portfolio
+            first = next(iter(results.values()))
+            breakdown = pd.DataFrame({"Factor shock": first["shocks"].map(lambda v: f"{v:+.1%}")})
+            for label, out in results.items():
+                breakdown[f"{label} beta"] = out["betas"].map(lambda v: f"{v:.2f}")
+                breakdown[f"{label} contribution"] = out["contributions"].map(lambda v: f"{v:+.1%}")
+            st.dataframe(breakdown)
+            st.caption("Factor shocks: Mkt-RF = VTI, SMB = IWM - OEF, HML = IWD - IWF. Betas are the shrunk (adjusted) betas; "
+                       "the SEs come from the raw-beta regression. Linear approximation, residuals assumed independent month to month.")
 
 
 footer = """
