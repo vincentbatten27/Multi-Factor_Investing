@@ -151,7 +151,7 @@ def get_spy2(start, end, t1, rebal_freq, c_portf):
         if dropped_held:
             print(f"Dropping held tickers with missing data in window: {dropped_held}")
         c_portf = c_portf[c_portf["Ticker"].isin(held_ok)]
-    tickers =  noise_adjustmnet(valid_tickers,new_seed, c_portf)
+    tickers =  noise_adjustment(valid_tickers,new_seed, c_portf)
     ### Import the monthly data
     global monthly_data
     global base_w
@@ -326,7 +326,7 @@ def extract_weights(c_portf):
 
 # In[100]:
 
-def noise_adjustmnet(tickers, seed,c_portf):
+def noise_adjustment(tickers, seed,c_portf):
 
     rng = np.random.default_rng(seed)
     n_keep = round(len(tickers) * (23/25))
