@@ -39,6 +39,17 @@ def _calls_run_sp500_data(node):
     )
 
 
+def _is_plain_value(node):
+    """A top-level assignment of a literal: RLM_DIR = "...", MAX_WEIGHT = 0.02, _FF3_CACHE = {} ..."""
+    if not isinstance(node, ast.Assign):
+        return False
+    try:
+        ast.literal_eval(node.value)
+        return True
+    except (ValueError, SyntaxError):
+        return False
+
+
 def load_notebook_functions():
     """Everything the notebook defines before it first calls run_sp500_data():
     its imports, functions, classes and plain constants (RLM_DIR, MAX_WEIGHT, ...). Nothing is run."""
@@ -69,8 +80,7 @@ def load_notebook_functions():
                     print(f"note: skipped an import the notebook lists ({e})")
     for body in bodies:          # then definitions and constants, in notebook order
         for node in body:
-            is_constant = isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
-            if isinstance(node, (ast.FunctionDef, ast.ClassDef)) or is_constant:
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)) or _is_plain_value(node):
                 run(node)
     return ns
 
@@ -102,7 +112,10 @@ def _run_month(date):
     try:
         with open(os.devnull, "w") as quiet, contextlib.redirect_stdout(quiet):
             _NS["run_bandit"]({0: date}, _NS["target_date"])
-        error = None
+        # run_bandit() skips evaluations that raise, so check that the month really produced a file
+        first = _NS["OBJ_ORDER"][0]
+        written = Path(_NS["RLM_DIR"]) / first / f"rebal_explored_{first}_{date.strftime('%Y-%m-%d')}.csv"
+        error = None if written.exists() else "no results were written"
     except Exception as e:       # one bad month must not stop the others
         error = f"{type(e).__name__}: {e}"
     return date, (time.time() - started) / 60, error
