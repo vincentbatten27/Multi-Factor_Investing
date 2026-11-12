@@ -105,6 +105,7 @@ def _start_worker(data):
     with open(os.devnull, "w") as quiet, contextlib.redirect_stdout(quiet):
         _NS = load_notebook_functions()
     _NS.update(data)
+    _NS["RLM_PROCESSES"] = 1     # a worker runs its one month itself; it must not start more workers
 
 
 def _run_month(date):
@@ -135,7 +136,13 @@ def main():
         print("No new months to process.")
         return
 
-    print(f"Results folder: {ns['RLM_DIR']}")
+    run_months(months, data, processes, ns["RLM_DIR"])
+
+
+def run_months(months, data, processes, results_dir=None):
+    """Run the given months, one per process. Used by main() and by the notebook's run_bandit()."""
+    if results_dir:
+        print(f"Results folder: {results_dir}")
     print(f"{len(months)} months to run ({months[0].date()} to {months[-1].date()}) on {processes} processes.")
     started = time.time()
     with Pool(processes, initializer=_start_worker, initargs=(data,)) as pool:
