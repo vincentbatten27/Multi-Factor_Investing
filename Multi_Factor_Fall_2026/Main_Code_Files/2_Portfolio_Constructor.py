@@ -621,6 +621,16 @@ if st.button("Retrieve Weights", type="primary", width="stretch"):
             st.divider()
             st.header("Historical Monte Carlo Simulation")
 
+            if sim_key == "pre_drm" and not (
+                SCRIPT_DIR / f"Front_End_Strategies_Iteration_4c_excess_surrogate/pre_raw/pre_made_df_{obj_key}.csv"
+            ).exists():
+                st.warning(
+                    "The stored backtest for this preset was removed: it had been built with the test month inside "
+                    "the optimizer's fit window, so it was not an out-of-sample result. The weights above are "
+                    "unaffected. The preset backtest will return once it has been rebuilt out of sample."
+                )
+                st.stop()
+
             with st.spinner("Running Monte Carlo simulation..."):
                 max_tickers = None
                 curr_weights = target_date.date()

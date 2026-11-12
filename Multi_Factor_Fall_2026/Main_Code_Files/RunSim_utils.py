@@ -42,6 +42,9 @@ from io import StringIO
 from alpha_vantage.timeseries import TimeSeries
 SCRIPT_DIR = Path(__file__).parent
 
+# Largest weight any one stock may take when a portfolio is built from scratch (None = no cap).
+MAX_WEIGHT = 0.02
+
 
 
 
@@ -182,10 +185,21 @@ def download_with_retry(tickers, start, end, retries=3, delay=5):
 # In[95]:
 
 
+_FF3_CACHE = {}
+def _ff3_download():
+    # The Fama-French file changes about once a month. Download it once per day and reuse it,
+    # instead of once per simulation (the bandit runs hundreds of simulations per month).
+    today = pd.Timestamp.now().date()
+    if _FF3_CACHE.get("day") != today:
+        _FF3_CACHE["df"] = gff.famaFrench3Factor(frequency='m')
+        _FF3_CACHE["day"] = today
+    return _FF3_CACHE["df"].copy()
+
+
 def famafrenchreturns(new_monthly_data):
     global ff3_monthly
     # Fama French Monthly Returns Data using getFamaFrenchFactors module
-    ff3_monthly = gff.famaFrench3Factor(frequency='m')
+    ff3_monthly = _ff3_download()
     ff3_monthly.rename(columns={"date_ff_factors": 'Date'}, inplace=True)
     ff3_monthly.set_index('Date', inplace=True)
     ff3_monthly.index = ff3_monthly.index.to_period('M').to_timestamp('D')
@@ -390,6 +404,14 @@ def optimization(c_portf, max_tickers, turnover_pct, old_weights):#new
         if floor_total > 1 + 1e-9:
             raise ValueError(f"Min Weights add up to {floor_total:.1%} - they must total 100% or less.")
 
+    # Per-name cap when building from scratch on the full universe (the bandit and the Constructor).
+    # Off when the user supplies their own holdings or ticker list: there a 2% cap may not be investable.
+    # Without it the LP holds only about one stock per month of data (36-37 names).
+    use_cap = MAX_WEIGHT is not None and c_portf is None and max_tickers is None and MAX_WEIGHT * len(I) >= 1
+    if use_cap:
+        for i in I:
+            wei[i].upBound = MAX_WEIGHT
+
     aux    = {i: LpVariable(f"Y_{i}",   lowBound=0) for i in I}
     err    = {t: LpVariable(f"Error_{t}", lowBound=0) for t in T}
     binary = {i: LpVariable(f"bin_{i}", cat=LpBinary) for i in I}
@@ -421,7 +443,8 @@ def optimization(c_portf, max_tickers, turnover_pct, old_weights):#new
     # Limit # of stocks in portfolio
     for i in I:
         index += wei[i] <= binary[i]
-    index += lpSum(binary[i] for i in I) <= q
+    # with the weight cap on, the cap decides how many names are held, so the name limit is lifted
+    index += lpSum(binary[i] for i in I) <= (len(I) if use_cap else q)
     # Solve (explicit CBC, quiet)
     index.solve(PULP_CBC_CMD(msg=False))
 
@@ -488,18 +511,19 @@ def portfolio_betas():
     for j in port_returns.index:
         port_returns.loc[j]["SP_500"] = monthly_data.loc[j]['SP_500']
         port_returns.loc[j]['Optimization'] = monthly_data.loc[j,:monthly_data.columns[-2]].dot(weights['New Weights'])
-    port_returns = port_returns.merge(ff3_monthly[['Mkt-RF','SMB','HML']], left_index=True, right_index=True)
+    port_returns = port_returns.merge(ff3_monthly[['Mkt-RF','SMB','HML','RF']], left_index=True, right_index=True)
     # Create an empty DataFrame to store the Portfolio Beta
     port_betas = pd.DataFrame(np.zeros((3,4)), index=ff3_monthly.columns[0:3], columns=["SP_500", "Target", "Optimization", "Abs. Diff"])
     port_betas["Target"] = [mkt_opt, smb_opt, hml_opt]# Set the independent variables (Fama French 3 Factors)
     X = port_returns[['Mkt-RF','SMB','HML']]
     # Set the dependent variable (Return of Portfolio)
-    Y = port_returns['SP_500']# Fit the multiple linear regression model
+    # Factor betas are defined on returns in excess of the risk-free rate
+    Y = port_returns['SP_500'] - port_returns['RF']# Fit the multiple linear regression model
     regr = LinearRegression()
     regr.fit(X,Y)
     port_betas['SP_500'] = regr.coef_
     # Set the dependent variable (Return of Portfolio)
-    Y = port_returns['Optimization']
+    Y = port_returns['Optimization'] - port_returns['RF']
     # Fit the multiple linear regression model
     regr = LinearRegression()
     regr.fit(X,Y)
@@ -579,6 +603,10 @@ def out_of_sampless(cccc, dddd):
         end=o1_end_d,
     )
     oos1_daily_data = oos1_daily_data.tz_localize(None)
+    # A stock with no return in a hold month earns 0 for that month (it sits at its last price).
+    # extract_stock_data would otherwise repeat its last return for every remaining month.
+    _raw = new_monthly_data.reindex(index=oos1_daily_data.index, columns=oos1_daily_data.columns)
+    oos1_daily_data = oos1_daily_data.where(_raw.notna(), 0.0)
     oos1_spy_d = extract_spy_data(indexgspc, cccc, dddd)
     oos1_daily_data["SP_500"] = oos1_spy_d["SP_500"]
     oos1_daily_data["Optimized Portfolio"] = ""
@@ -1635,21 +1663,23 @@ def final_visuala(ddfs):
     # Performance Metrics
     # =========================================================================
     def compute_metrics(series, label):
-        start = str(series.index[0])
-        end   = str(series.index[-1])
-
-        rf = ff3_monthly[start:end]['RF']
-        rf = rf.mean()
         # Convert cumulative values to period returns
         returns = series.pct_change().dropna()
         n = len(returns)
         months = n
 
+        # A growth-of-$1 value at label M is the value after month M-1 (see out_of_sampless),
+        # so the return at label M was earned in month M-1. Take RF from that month.
+        rf_m = ff3_monthly["RF"].reindex(returns.index - pd.DateOffset(months=1))
+        rf_mean = rf_m.mean() if rf_m.notna().any() else 0.0
+        rf_m_aligned = pd.Series(rf_m.to_numpy(), index=returns.index).fillna(rf_mean)
+        rf = (1 + rf_mean) ** 12 - 1          # annual RF, to match the annualised return
+
         total_return = (series.iloc[-1] / series.iloc[0]) - 1
         ann_return = (1 + total_return) ** (12 / months) - 1
         volatility = returns.std() * np.sqrt(12)
-        downside_returns = returns[returns < 0]
-        downside_vol = downside_returns.std() * np.sqrt(12)
+        # Downside deviation: root mean square of shortfalls below RF (not the std of negative months)
+        downside_vol = np.sqrt(((returns - rf_m_aligned).clip(upper=0) ** 2).mean()) * np.sqrt(12)
         sharpe = (ann_return - rf) / volatility if volatility != 0 else np.nan
         sortino = (ann_return - rf) / downside_vol if downside_vol != 0 else np.nan
 
@@ -2653,12 +2683,29 @@ def run_sp500_data():
     
     return indexgspc1, spy_yoy_tickers1
 
+def _alpha_vantage_key():
+    # The key is read from the environment, never from the source file.
+    # Local: put ALPHA_VANTAGE_API_KEY=... in a .env file (already git-ignored).
+    # Streamlit Cloud: add ALPHA_VANTAGE_API_KEY under the app's Secrets.
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
+    key = os.getenv("ALPHA_VANTAGE_API_KEY")
+    if not key:
+        raise RuntimeError(
+            "ALPHA_VANTAGE_API_KEY is not set. Add it to a local .env file or to the Streamlit app's Secrets."
+        )
+    return key
+
+
 def update_spy(indexgspc1):
     # Benchmark = SPY total return (dividends reinvested), from Alpha Vantage 'adjusted close'.
     # Stock returns are total return (Alpaca Adjustment.ALL), so the benchmark must be too.
     # spy_data.csv 'sprtrn' is the S&P 500 price return; it is kept only for months before
     # AV's SPY history starts (1999), which no backtest uses (stock data starts 2016).
-    ts = TimeSeries(key='CPT85HPR5S2L405H', output_format='pandas')
+    ts = TimeSeries(key=_alpha_vantage_key(), output_format='pandas')
     data, meta_data = ts.get_monthly_adjusted(symbol='SPY')
     
     # Clean column names
